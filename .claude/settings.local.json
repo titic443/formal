@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:jcsse2026.org)",
+      "WebFetch(domain:www.ieee.org)",
+      "WebFetch(domain:www.scribbr.com)",
+      "WebFetch(domain:jcsse2022.cp.su.ac.th)",
+      "WebFetch(domain:marathon.csee.usf.edu)",
+      "WebFetch(domain:www.ieee-ies.org)",
+      "WebFetch(domain:arxiv.org)"
+    ]
+  }
+}

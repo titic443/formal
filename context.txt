@@ -1,0 +1,496 @@
+แนะนำสำหรับ Term Project: Formal Verification ด้วย Petri Net สำหรับ Aircraft Turnaround Process
+
+  จาก context ที่ให้มา ผมเห็นว่าเป็นหัวข้อที่ดีมากครับ เพราะ Aircraft Turnaround Process เป็น concurrent system โดยธรรมชาติ ซึ่งเหมาะกับการวิเคราะห์ด้วย Petri Net มาก ขอแนะนำดังนี้:                          
+   
+  ---                                                                                                                                                                                   
+  1. การกำหนดขอบเขต (Scope) - สำคัญมาก                                                                                                                                                 
+
+  Context ที่ได้มามีรายละเอียดเยอะมาก สำหรับ term project ควร เลือกเจาะจงแค่ส่วนเดียว ผมแนะนำ:
+
+  ช่วงที่ 2: Maintenance & Ground Handling (Parallel Processing) เพราะ:
+  - มีหลาย process ทำงานพร้อมกัน (Refueling, Catering, Cleaning, Baggage, Maintenance)
+  - มี shared resources (พื้นที่รอบเครื่องบิน, GSE equipment)
+  - มีโอกาสเกิด deadlock จริงๆ (รถขวางกัน, ลำดับการเข้าถึงเครื่อง)
+  - มี safety constraints ที่ต้องตรวจสอบ (ห้าม pushback ถ้ายังเติมน้ำมันไม่เสร็จ)
+
+  ---
+  2. การออกแบบ Petri Net Model
+
+  Places (สถานะ) ที่ควรมี:
+
+  ┌──────────────────────┬─────────────────────────────┐
+  │        Place         │          ความหมาย           │
+  ├──────────────────────┼─────────────────────────────┤
+  │ P_arrived            │ เครื่องจอดเรียบร้อย (chocks on) │
+  ├──────────────────────┼─────────────────────────────┤
+  │ P_pax_debarked       │ ผู้โดยสารลงหมดแล้ว             │
+  ├──────────────────────┼─────────────────────────────┤
+  │ P_refueling          │ กำลังเติมน้ำมัน                 │
+  ├──────────────────────┼─────────────────────────────┤
+  │ P_refuel_done        │ เติมน้ำมันเสร็จ                 │
+  ├──────────────────────┼─────────────────────────────┤
+  │ P_catering           │ กำลังโหลดอาหาร               │
+  ├──────────────────────┼─────────────────────────────┤
+  │ P_catering_done      │ โหลดอาหารเสร็จ               │
+  ├──────────────────────┼─────────────────────────────┤
+  │ P_cleaning           │ กำลังทำความสะอาด             │
+  ├──────────────────────┼─────────────────────────────┤
+  │ P_clean_done         │ ทำความสะอาดเสร็จ             │
+  ├──────────────────────┼─────────────────────────────┤
+  │ P_baggage_unload     │ กำลังขนกระเป๋าลง              │
+  ├──────────────────────┼─────────────────────────────┤
+  │ P_baggage_load       │ กำลังโหลดกระเป๋าขึ้น            │
+  ├──────────────────────┼─────────────────────────────┤
+  │ P_baggage_done       │ จัดการกระเป๋าเสร็จ             │
+  ├──────────────────────┼─────────────────────────────┤
+  │ P_maintenance        │ กำลังตรวจสภาพ                │
+  ├──────────────────────┼─────────────────────────────┤
+  │ P_maint_signed       │ วิศวกรเซ็นปล่อย                │
+  ├──────────────────────┼─────────────────────────────┤
+  │ P_loadsheet_approved │ กัปตันอนุมัติ W&B                │
+  ├──────────────────────┼─────────────────────────────┤
+  │ P_ready_pushback     │ พร้อม pushback               │
+  └──────────────────────┴─────────────────────────────┘
+
+  Transitions (เหตุการณ์):
+
+  - t_dock, t_debark, t_start_refuel, t_end_refuel, t_start_catering, ...
+  - t_pushback (transition สำคัญ - ต้องมี preconditions ครบทุกอย่าง)
+
+  Shared Resources (ใช้ Resource Places):
+
+  - Apron space (พื้นที่จำกัดรอบเครื่อง) - นี่คือจุดที่อาจเกิด deadlock
+  - GSE availability (รถเติมน้ำมัน, รถ catering มีจำนวนจำกัด)
+
+  ---
+  3. Properties ที่ควรตรวจสอบ
+
+  Safety Properties (สิ่งที่ต้องไม่เกิดขึ้น):
+
+  - No pushback during refueling: ถ้า P_refueling มี token อยู่ → t_pushback ต้อง fire ไม่ได้
+  - No refueling during passenger boarding: ป้องกันอันตรายจากไฟไหม้
+
+  Liveness Properties (สิ่งที่ต้องเกิดขึ้นในที่สุด):
+
+  - ทุก process ต้องเสร็จสิ้นได้ (ไม่มี transition ที่ dead)
+  - ระบบต้องไปถึง P_ready_pushback ได้เสมอ (reachability)
+
+  Deadlock-freedom:
+
+  - ตรวจว่าไม่มี marking ใดที่ไม่มี transition ใดๆ enabled (ยกเว้น final state)
+
+  ---
+  4. เครื่องมือที่แนะนำ
+
+  ┌───────────────────────────────────────────────┬────────────────────────────────────────────────┐
+  │                     Tool                      │                      ข้อดี                       │
+  ├───────────────────────────────────────────────┼────────────────────────────────────────────────┤
+  │ PIPE2 (Platform Independent Petri Net Editor) │ ฟรี, GUI ดี, วิเคราะห์ reachability graph ได้       │
+  ├───────────────────────────────────────────────┼────────────────────────────────────────────────┤
+  │ CPN Tools (Coloured Petri Nets)               │ รองรับ Coloured Petri Net ถ้าต้องการแยกประเภท GSE │
+  ├───────────────────────────────────────────────┼────────────────────────────────────────────────┤
+  │ LoLA (Low-Level Analyser)                     │ เร็ว, ตรวจ deadlock/liveness ได้ดี                │
+  ├───────────────────────────────────────────────┼────────────────────────────────────────────────┤
+  │ TAPAAL                                        │ รองรับ Timed-Arc Petri Net ถ้าอยากใส่เรื่องเวลา     │
+  └───────────────────────────────────────────────┴────────────────────────────────────────────────┘
+
+  สำหรับ term project ผมแนะนำ PIPE2 หรือ TAPAAL เพราะมี GUI ใช้ง่าย และ export รูปใส่ paper ได้สวย
+
+  ---
+  5. โครงสร้าง Paper ตามแบบ JCSSE
+
+  Title: Formal Verification of Aircraft Turnaround Process
+         Using Petri Net for Deadlock Detection and Liveness Analysis
+
+  1. Introduction
+     - ความสำคัญของ Aircraft Turnaround (เวลา = เงิน ในอุตสาหกรรมการบิน)
+     - ปัญหา: concurrent processes + shared resources → อาจเกิด deadlock
+     - วัตถุประสงค์: ใช้ Petri Net model + formal verification
+       เพื่อพิสูจน์ deadlock-freedom และ liveness
+
+  2. Related Work
+     - Petri Net ใน aviation/transportation systems
+     - Formal verification ใน safety-critical systems
+     - Aircraft ground handling optimization (มี paper อยู่พอสมควร)
+
+  3. Background / Preliminaries
+     - นิยาม Petri Net (P, T, F, W, M0)
+     - Deadlock, Liveness, Boundedness, Reachability
+     - Aircraft Turnaround Process overview
+
+  4. Proposed Model
+     - อธิบาย Petri Net model ที่สร้าง (รูป + อธิบาย)
+     - กำหนด Places, Transitions, Arcs, Initial Marking
+     - ระบุ Safety/Liveness properties ที่ต้องตรวจ
+
+  5. Verification & Analysis
+     - Reachability Graph / Coverability Tree
+     - ผลการตรวจ Deadlock (พบ/ไม่พบ)
+     - ผลการตรวจ Liveness (L1-L4 liveness level)
+     - ถ้าพบ deadlock → แสดง scenario + เสนอวิธีแก้
+
+  6. Discussion
+     - วิเคราะห์ผลลัพธ์
+     - เปรียบเทียบ model ก่อน/หลังแก้ deadlock (ถ้ามี)
+     - ข้อจำกัดของ model
+
+  7. Conclusion & Future Work
+
+
+  ---
+  6. เทคนิคที่จะทำให้ Paper น่าสนใจขึ้น
+
+  1. สร้าง model ที่มี deadlock ก่อน (ตั้งใจไม่ใส่ constraint บางอย่าง) แล้วแสดงให้เห็นว่า tool ตรวจจับได้ → จากนั้นแก้ไข model → ตรวจซ้ำว่า deadlock-free แล้ว ← นี่คือ contribution ที่ชัดเจน
+  2. แสดง Reachability Graph ให้เห็นว่า state space มีขนาดเท่าไร และ all possible scenarios มีกี่แบบ
+  3. ใส่ตัวอย่าง scenario จริง จาก context ที่ได้มา เช่น "รถเติมน้ำมันเสียขวางทาง" แล้วแสดงว่า model จัดการอย่างไร
+
+  ---
+  7. ตัวอย่าง Deadlock Scenario ที่เป็นไปได้
+
+  Scenario: Circular Wait on Apron Space
+  - รถ Refueling จอดด้านหน้า → รอ Catering truck ถอยออก
+  - รถ Catering จอดด้านข้าง → รอ Baggage truck ถอยออก
+  - รถ Baggage จอดด้านหลัง → รอ Refueling truck ถอยออก
+  → Deadlock! (Circular dependency on shared apron space)
+
+
+  นี่คือ classic deadlock pattern ที่ Petri Net สามารถตรวจจับได้ผ่าน reachability analysis
+
+  ---
+  สรุป
+
+  - Scope: เน้น Ground Handling (Parallel Processing phase)
+  - Model: Petri Net with resource places สำหรับ shared GSE/apron space
+  - Verify: Deadlock-freedom + Liveness
+  - Tool: PIPE2 หรือ TAPAAL
+  - Contribution: แสดง deadlock scenario → เสนอ fix → verify อีกครั้ง
+
+  หัวข้อนี้ realistic และมี practical value ดีครับ ถ้ามีอะไรอยากถามเพิ่มเติมเกี่ยวกับการสร้าง model หรือโครงสร้าง paper บอกได้เลยครับ
+                             
+✻ Churned for 1m 2s                                                                                                                                                                     
+                             
+❯ เขียนอธิบายข้อ 1-3 ให้ละเอียดให้หน่อย                                                                                                                                                        
+                                  
+⏺ รายละเอียด Section 1-3 สำหรับ Paper                                                                                                                                                     
+                                                                                                                                                                                        
+  ---                                                                                                                                                                                   
+  1. Introduction 
+                                                                                                                                                                                        
+  1.1 ความเป็นมาและความสำคัญของปัญหา (Problem Statement)                                                                                                                                   
+
+  ในอุตสาหกรรมการบินพลเรือน (Civil Aviation) กระบวนการบริหารจัดการเครื่องบินที่ภาคพื้นดิน หรือที่เรียกว่า Aircraft Turnaround Process ถือเป็นหนึ่งในกระบวนการที่มีความซับซ้อนสูงและมีผลกระทบโดยตรงต่อความตรงต่อเวลา
+  (On-Time Performance: OTP) ของสายการบิน โดยกระบวนการนี้ครอบคลุมตั้งแต่เครื่องบินแตะรันเวย์ (Touchdown) จนกระทั่งเครื่องบินถูกดันออกจากหลุมจอด (Pushback) เพื่อเตรียมทะยานขึ้นสู่ท้องฟ้าอีกครั้ง
+
+  สิ่งที่ทำให้กระบวนการนี้มีความท้าทายอย่างยิ่งคือลักษณะการทำงานแบบ ขนาน (Concurrent/Parallel Processing) กล่าวคือ ในช่วงที่เครื่องบินจอดอยู่ที่หลุมจอด (Bay) จะมีหลายหน่วยงานเข้ามาปฏิบัติงานพร้อมกัน ได้แก่ ทีมเติมน้ำมันเชื้อเพลิ
+  (Refueling) ทีมจัดเตรียมอาหาร (Catering) ทีมทำความสะอาดห้องโดยสาร (Cabin Cleaning) ทีมขนถ่ายสัมภาระ (Baggage Handling) และวิศวกรการบินที่ทำการตรวจสอบสภาพเครื่องบิน (Transit Maintenance) ซึ่งทุกทีมต้องใช้
+  ทรัพยากรร่วมกัน (Shared Resources) โดยเฉพาะพื้นที่รอบตัวเครื่องบินในลานจอด (Apron Area) และอุปกรณ์สนับสนุนภาคพื้น (Ground Support Equipment: GSE) ที่มีจำนวนจำกัด
+
+  เมื่อมีหลายกระบวนการทำงานพร้อมกันและต้องแย่งใช้ทรัพยากรร่วม ปัญหาที่อาจเกิดขึ้นคือ การติดตาย (Deadlock) ซึ่งหมายถึงสถานการณ์ที่ทุกกระบวนการรอทรัพยากรจากกันและกันเป็นวงกลม ทำให้ไม่มีกระบวนการใดสามารถดำเนินต่อไปได้
+  ตัวอย่างเช่น รถเติมน้ำมันจอดขวางทางออกของรถ Catering ในขณะที่รถ Catering จอดขวางทางออกของรถขนกระเป๋า และรถขนกระเป๋าจอดขวางทางออกของรถเติมน้ำมัน สถานการณ์เช่นนี้จะส่งผลให้กระบวนการ Turnaround หยุดชะงัก
+  เกิดความล่าช้าของเที่ยวบิน (Flight Delay) และอาจลุกลามเป็นปัญหาระดับระบบ (Cascading Delay) ที่กระทบเที่ยวบินอื่นๆ ต่อเนื่องไปทั้งวัน
+
+  นอกจากปัญหา Deadlock แล้ว ยังมีประเด็นด้าน ความปลอดภัย (Safety) ที่ต้องพิจารณา เนื่องจากบางกระบวนการมีข้อจำกัดด้านลำดับที่เข้มงวด เช่น ห้ามทำการ Pushback ขณะที่ยังเติมน้ำมันอยู่
+  ห้ามเปิดประตูเครื่องบินขณะเติมน้ำมันหากไม่มีรถดับเพลิงประจำการ และกัปตันต้องได้รับใบอนุมัติน้ำหนักและจุดศูนย์ถ่วง (Weight & Balance / Loadsheet) ก่อนจึงจะเริ่ม Pushback ได้ หากลำดับเหล่านี้ถูกละเมิด อาจนำไปสู่อุบัติเหตุร้ายแรงไ
+
+  1.2 แรงจูงใจในการวิจัย (Motivation)
+
+  ในปัจจุบัน การบริหารจัดการ Aircraft Turnaround Process ส่วนใหญ่ยังคงพึ่งพาประสบการณ์ของเจ้าหน้าที่ภาคพื้น (Ground Coordinator) และมาตรฐานการปฏิบัติงาน (Standard Operating Procedures: SOPs) เป็นหลัก
+  อย่างไรก็ตาม SOPs เหล่านี้เขียนเป็นภาษาธรรมชาติ (Natural Language) ซึ่งอาจมีความกำกวม (Ambiguity) หรือมีกรณีที่ไม่ครอบคลุม (Incomplete Coverage) โดยเฉพาะเมื่อเกิดสถานการณ์ที่ไม่คาดคิด เช่น อุปกรณ์ GSE ขัดข้อง
+  หรือสภาพอากาศเปลี่ยนแปลงกะทันหัน
+
+  Formal Verification เป็นวิธีการทางคณิตศาสตร์ที่สามารถ พิสูจน์ได้อย่างเข้มงวด (Rigorously Prove) ว่าแบบจำลอง (Model) ของระบบมีคุณสมบัติที่ต้องการหรือไม่ โดยไม่จำเป็นต้องทดสอบทุกกรณีด้วยมือ ซึ่งต่างจากการทดสอบแบบดั้งเดิม
+  (Testing/Simulation) ที่สามารถตรวจสอบได้เพียงบางกรณี Formal Verification สามารถครอบคลุม ทุกสถานการณ์ที่เป็นไปได้ (All Possible Scenarios) ของระบบ
+
+  ในบรรดาเครื่องมือ Formal Verification ที่มีอยู่ Petri Net เป็นแบบจำลองทางคณิตศาสตร์ที่เหมาะสมอย่างยิ่งสำหรับการวิเคราะห์ระบบแบบขนาน เนื่องจาก Petri Net มีความสามารถในการแสดง Concurrency, Synchronization,
+  Resource Sharing และ Conflict ได้อย่างเป็นธรรมชาติ อีกทั้งยังมีทฤษฎีการวิเคราะห์ที่แข็งแกร่ง เช่น Reachability Analysis, Invariant Analysis และ Structural Analysis ที่สามารถใช้ตรวจสอบคุณสมบัติ
+  Deadlock-freedom และ Liveness ได้โดยตรง
+
+  1.3 วัตถุประสงค์ของการวิจัย (Objectives)
+
+  งานวิจัยนี้มีวัตถุประสงค์ดังนี้:
+
+  1. สร้างแบบจำลอง Petri Net ของกระบวนการ Aircraft Turnaround โดยเฉพาะในช่วง Ground Handling ที่มีการทำงานแบบขนานและใช้ทรัพยากรร่วมกัน โดยอ้างอิงข้อมูลจากเจ้าหน้าที่ควบคุมจราจรทางอากาศ (Air Traffic
+  Controller) และมาตรฐานการปฏิบัติงานจริง
+  2. ตรวจสอบคุณสมบัติ Deadlock-freedom ของแบบจำลอง เพื่อยืนยันว่าระบบจะไม่เข้าสู่สถานะที่ทุกกระบวนการหยุดชะงักไม่สามารถดำเนินต่อได้
+  3. ตรวจสอบคุณสมบัติ Liveness ของแบบจำลอง เพื่อยืนยันว่าทุกกระบวนการในระบบสามารถดำเนินการจนเสร็จสมบูรณ์ได้ในที่สุด
+  4. ระบุสถานการณ์ที่อาจนำไปสู่ Deadlock (ถ้ามี) และ เสนอแนวทางแก้ไข โดยการปรับปรุงแบบจำลอง แล้วทำการตรวจสอบซ้ำ (Re-verification) เพื่อยืนยันว่าแนวทางแก้ไขสามารถขจัดปัญหาได้จริง
+
+  1.4 ขอบเขตของการวิจัย (Scope)
+
+  งานวิจัยนี้มุ่งเน้นที่กระบวนการ Ground Handling ในช่วง Aircraft Turnaround สำหรับเที่ยวบินภายในประเทศ (Domestic Flight) ที่ท่าอากาศยานในประเทศไทย โดยพิจารณากระบวนการหลัก 5 กระบวนการ ได้แก่ Refueling,
+  Catering, Cabin Cleaning, Baggage Handling และ Transit Maintenance ที่ทำงานแบบขนานบนทรัพยากรร่วม คือ พื้นที่ลานจอดและอุปกรณ์ GSE แบบจำลองที่สร้างขึ้นเป็น Place/Transition Petri Net (P/T Net) ระดับ
+  High-level ที่เน้นการวิเคราะห์เชิงโครงสร้าง (Structural Analysis) และ Reachability Analysis โดยยังไม่รวมปัจจัยด้านเวลา (Timed Analysis)
+
+  ---
+  2. Related Work
+
+  2.1 Formal Verification ในระบบ Safety-Critical
+
+  Formal Verification เป็นวิธีการที่ได้รับการยอมรับอย่างกว้างขวางในอุตสาหกรรมที่ความปลอดภัยเป็นสิ่งสำคัญสูงสุด (Safety-Critical Industries) Clarke et al. [1] ได้บุกเบิกเทคนิค Model Checking
+  ซึ่งเป็นกระบวนการอัตโนมัติในการตรวจสอบว่าแบบจำลองของระบบสอดคล้องกับคุณสมบัติ (Specification) ที่กำหนดไว้หรือไม่ โดยการสำรวจ State Space ทั้งหมดของระบบอย่างเป็นระบบ (Exhaustive Exploration) ข้อได้เปรียบหลักขอ
+  Model Checking คือสามารถให้ Counterexample ได้เมื่อพบว่าคุณสมบัติไม่เป็นจริง ซึ่ง Counterexample นี้แสดงลำดับเหตุการณ์ที่นำไปสู่สถานะที่ละเมิดคุณสมบัติ ทำให้ผู้ออกแบบระบบสามารถเข้าใจและแก้ไขปัญหาได้ตรงจุด
+
+  ในอุตสาหกรรมการบิน มาตรฐาน DO-178C (Software Considerations in Airborne Systems and Equipment Certification) กำหนดให้ซอฟต์แวร์ที่ใช้ในระบบการบินต้องผ่านกระบวนการตรวจสอบอย่างเข้มงวด โดยภาคผนวก
+  DO-333 (Formal Methods Supplement) ได้ระบุแนวทางการใช้ Formal Methods เป็นส่วนหนึ่งของกระบวนการรับรอง (Certification) อย่างชัดเจน [2] สิ่งนี้สะท้อนให้เห็นว่าอุตสาหกรรมการบินให้ความสำคัญกับ Formal
+  Verification เป็นอย่างมาก
+
+  Bozzano et al. [3] ได้ประยุกต์ใช้ Model Checking ในการวิเคราะห์ความปลอดภัยของระบบ Wheel Braking System (WBS) ของเครื่องบิน ซึ่งแสดงให้เห็นว่า Formal Verification
+  สามารถค้นพบข้อบกพร่องที่การทดสอบแบบดั้งเดิมไม่สามารถค้นพบได้
+
+  2.2 Petri Net สำหรับการวิเคราะห์ระบบแบบขนาน
+
+  Petri Net ถูกเสนอครั้งแรกโดย Carl Adam Petri ในปี 1962 [4] และได้รับการพัฒนาต่อยอดจนกลายเป็นเครื่องมือมาตรฐานในการวิเคราะห์ระบบแบบขนาน Murata [5] ได้สรุปทฤษฎีและการประยุกต์ใช้ Petri Net อย่างครอบคลุม
+  โดยชี้ให้เห็นว่า Petri Net มีจุดเด่นในการแสดง 4 ลักษณะสำคัญ ของระบบแบบขนาน ได้แก่:
+
+  - Concurrency: หลายกระบวนการทำงานพร้อมกันโดยอิสระ
+  - Synchronization: กระบวนการบางอย่างต้องรอให้กระบวนการอื่นเสร็จก่อน
+  - Conflict/Choice: ทรัพยากรมีจำกัดและต้องเลือกจัดสรร
+  - Mutual Exclusion: บางทรัพยากรถูกใช้ได้ครั้งละหนึ่งกระบวนการเท่านั้น
+
+  ลักษณะทั้ง 4 นี้สอดคล้องกับธรรมชาติของ Aircraft Turnaround Process โดยตรง
+
+  2.3 การประยุกต์ใช้ Petri Net ในระบบขนส่งและการบิน
+
+  ในด้านการจัดการจราจรทางอากาศ (Air Traffic Management) Shortle et al. [6] ได้ใช้ Stochastic Petri Net ในการวิเคราะห์ความเสี่ยงของการชนกันบนรันเวย์ (Runway Incursion)
+  โดยจำลองปฏิสัมพันธ์ระหว่างเครื่องบินที่กำลัง Take-off, Landing และ Taxiing บนรันเวย์เดียวกัน ผลการวิเคราะห์สามารถระบุสถานการณ์ที่มีความเสี่ยงสูงและเสนอมาตรการป้องกันได้
+
+  Zhao et al. [7] ได้ใช้ Coloured Petri Net (CPN) ในการจำลองกระบวนการ Airport Ground Handling โดยมุ่งเน้นที่การเพิ่มประสิทธิภาพด้านเวลา (Time Optimization) อย่างไรก็ตาม งานวิจัยดังกล่าวเน้นที่การจำลอง
+  (Simulation) มากกว่าการพิสูจน์คุณสมบัติเชิงรูปนัย (Formal Verification)
+
+  ในด้านระบบรถไฟ Giua and Seatzu [8] ได้ใช้ Petri Net ในการวิเคราะห์ Deadlock ของระบบสัญญาณรถไฟ ซึ่งมีลักษณะคล้ายกับปัญหาการจัดสรรทรัพยากรบนลานจอดเครื่องบิน โดยใช้ทฤษฎี Siphon
+  ในการระบุเงื่อนไขที่จำเป็นสำหรับการเกิด Deadlock
+
+  2.4 ช่องว่างของงานวิจัย (Research Gap)
+
+  จากการทบทวนวรรณกรรมพบว่า แม้จะมีงานวิจัยที่ใช้ Petri Net ในการจำลองกระบวนการ Ground Handling แต่ส่วนใหญ่เน้นที่ Performance Analysis (การวิเคราะห์เชิงเวลาและประสิทธิภาพ) มากกว่า Correctness Verification
+  (การพิสูจน์ความถูกต้อง) โดยเฉพาะอย่างยิ่ง ยังไม่มีงานวิจัยที่มุ่งเน้นการตรวจสอบ Deadlock-freedom และ Liveness ของกระบวนการ Turnaround ที่พิจารณาข้อจำกัดด้านทรัพยากรร่วม (Shared GSE Resources)
+  และข้อจำกัดด้านความปลอดภัย (Safety Constraints) อย่างครบถ้วน
+
+  งานวิจัยนี้จึงมุ่งเติมช่องว่างดังกล่าว โดยใช้ Place/Transition Petri Net สร้างแบบจำลองที่ครอบคลุมทั้ง Concurrency, Resource Sharing และ Safety Constraints ของกระบวนการ Aircraft Turnaround แล้วใช้
+  Reachability Analysis เพื่อตรวจสอบ Deadlock-freedom และ Liveness อย่างเป็นระบบ
+
+  ---
+  3. Background / Preliminaries
+
+  3.1 Petri Net: นิยามเชิงรูปนัย (Formal Definition)
+
+  Definition 1 (Petri Net): Petri Net คือ 4-tuple PN = (P, T, F, W) โดยที่:
+  - P = {p₁, p₂, ..., pₘ} คือเซตจำกัดของ Places (แทนสถานะหรือเงื่อนไข)
+  - T = {t₁, t₂, ..., tₙ} คือเซตจำกัดของ Transitions (แทนเหตุการณ์หรือการกระทำ)
+  - P ∩ T = ∅ (P และ T ไม่มีสมาชิกร่วมกัน)
+  - F ⊆ (P × T) ∪ (T × P) คือเซตของ Arcs (ลูกศรเชื่อมระหว่าง Place กับ Transition)
+  - W: F → ℕ⁺ คือฟังก์ชันน้ำหนัก (Weight Function) กำหนดจำนวน Token ที่ต้องใช้/สร้างบนแต่ละ Arc
+
+  Definition 2 (Marking): Marking คือฟังก์ชัน M: P → ℕ₀ ที่กำหนดจำนวน Token ในแต่ละ Place ณ เวลาใดเวลาหนึ่ง Marking แสดงถึง สถานะปัจจุบัน ของระบบทั้งหมด โดย M₀ คือ Initial Marking (สถานะเริ่มต้นของระบบ)
+
+  Definition 3 (Enabling Rule): Transition t ∈ T จะ enabled ภายใต้ Marking M (เขียนแทนด้วย M[t⟩) ก็ต่อเมื่อ:
+
+  ∀p ∈ •t : M(p) ≥ W(p, t)
+
+  โดย •t คือเซตของ Input Places ของ t (Places ทั้งหมดที่มี Arc ชี้เข้าสู่ t) ความหมายคือ ทุก Place ที่เป็น Input ของ t ต้องมี Token เพียงพอตามน้ำหนักของ Arc
+
+  Definition 4 (Firing Rule): เมื่อ Transition t ที่ enabled ทำการ fire จะเกิด Marking ใหม่ M' โดย:
+
+  ∀p ∈ P : M'(p) = M(p) - W(p, t) + W(t, p)
+
+  กล่าวคือ Token จะถูกดึงออกจาก Input Places และเพิ่มเข้า Output Places ตามน้ำหนักของ Arc
+
+  ตัวอย่างประกอบ (Illustrative Example):
+
+  ให้ Place P_fuel_truck_available มี 1 Token (มีรถเติมน้ำมัน 1 คัน) และ Transition t_start_refuel ต้องการ Token จากทั้ง P_fuel_truck_available และ P_aircraft_docked เมื่อทั้งสอง Place มี Token ครบ →
+  Transition จะ enabled → เมื่อ fire แล้ว Token จะย้ายไปยัง P_refueling_in_progress แสดงว่ากำลังเติมน้ำมันอยู่
+
+  3.2 คุณสมบัติของ Petri Net ที่เกี่ยวข้อง
+
+  3.2.1 Reachability
+
+  Definition 5 (Reachability): Marking M เรียกว่า reachable จาก M₀ ก็ต่อเมื่อ มีลำดับการ fire ของ Transitions σ = t₁t₂...tₖ ที่ทำให้:
+
+  M₀[t₁⟩M₁[t₂⟩M₂...[tₖ⟩M
+
+  เซตของ Marking ทั้งหมดที่ reachable จาก M₀ เรียกว่า Reachability Set เขียนแทนด้วย R(M₀) และกราฟที่แสดงความสัมพันธ์ระหว่าง Marking ทั้งหมดเรียกว่า Reachability Graph
+
+  ความสำคัญในงานวิจัยนี้: Reachability Graph คือเครื่องมือหลักในการวิเคราะห์ว่าระบบสามารถไปถึงสถานะที่ต้องการ (เช่น สถานะ "พร้อม Pushback") ได้หรือไม่ และมีสถานะอันตรายใด (เช่น Deadlock State)
+  ที่ระบบอาจไปถึงได้หรือไม่
+
+  3.2.2 Deadlock (Dead Marking)
+
+  Definition 6 (Deadlock): Marking M เรียกว่า dead marking (หรือ deadlock state) ก็ต่อเมื่อ ไม่มี Transition ใดใน T ที่ enabled ภายใต้ M:
+
+  ∀t ∈ T : ¬M[t⟩
+
+  กล่าวคือ ระบบเข้าสู่สถานะที่ "แข็ง" ไม่สามารถดำเนินการใดๆ ต่อได้อีก
+
+  Definition 7 (Deadlock-free): Petri Net เรียกว่า deadlock-free ก็ต่อเมื่อ ทุก Marking ที่ reachable (ยกเว้น Marking สุดท้ายที่ตั้งใจให้เป็นจุดสิ้นสุด) จะต้องมี Transition อย่างน้อยหนึ่งตัวที่ enabled
+
+  ความสำคัญในงานวิจัยนี้: ในบริบทของ Aircraft Turnaround ระบบต้องไม่มี Deadlock เกิดขึ้นก่อนถึง Final State (สถานะพร้อม Pushback) หาก Reachability Graph มี Dead Marking ที่ไม่ใช่ Final State
+  แสดงว่ามีสถานการณ์ที่ทำให้กระบวนการ Turnaround หยุดชะงักกลางทาง ซึ่งเป็นสิ่งที่ยอมรับไม่ได้
+
+  ตัวอย่าง Deadlock ในบริบทของ Aircraft Turnaround:
+
+  สมมติมี Apron Zone 3 โซน (Zone A, B, C) และมี GSE 3 คัน (Fuel Truck, Catering Truck, Baggage Cart):
+  - Fuel Truck ครอบครอง Zone A → รอ Zone B
+  - Catering Truck ครอบครอง Zone B → รอ Zone C
+  - Baggage Cart ครอบครอง Zone C → รอ Zone A
+  - → Circular Wait → Deadlock!
+
+  ในแบบจำลอง Petri Net สถานการณ์นี้จะปรากฏเป็น Dead Marking ใน Reachability Graph
+
+  3.2.3 Liveness
+
+  Definition 8 (Liveness Levels): Petri Net มีระดับ Liveness 5 ระดับ:
+
+
+
+
+
+
+
+
+  ┌──────┬──────────────────────┬───────────────────────────────────────────────────────────────────────────┬───────────────────────────────────────────────────────┐
+  │ ระดับ │          ชื่อ          │                                   นิยาม                                    │               ความหมายในบริบท Turnaround               │
+  ├──────┼──────────────────────┼───────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────────────┤
+  │ L0   │ Dead                 │ Transition t ไม่สามารถ fire ได้ในทุก Reachable Marking                       │ กระบวนการนั้นไม่สามารถเกิดขึ้นได้เลย (เช่น มีเงื่อนไขที่เป็นไปไม่ได้) │
+  ├──────┼──────────────────────┼───────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────────────┤
+  │ L1   │ Potentially Fireable │ t สามารถ fire ได้ใน Marking อย่างน้อยหนึ่งตัว                                   │ กระบวนการสามารถเกิดขึ้นได้อย่างน้อยครั้งหนึ่ง                   │
+  ├──────┼──────────────────────┼───────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────────────┤
+  │ L2   │ -                    │ สำหรับทุกจำนวนเต็ม k จะมีลำดับ firing ที่ t fire ได้อย่างน้อย k ครั้ง                 │ กระบวนการสามารถเกิดซ้ำได้ตามจำนวนครั้งที่ต้องการ              │
+  ├──────┼──────────────────────┼───────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────────────┤
+  │ L3   │ -                    │ มีลำดับ firing ที่ t fire ได้ไม่สิ้นสุด                                            │ กระบวนการสามารถทำงานต่อเนื่องไม่สิ้นสุด                      │
+  ├──────┼──────────────────────┼───────────────────────────────────────────────────────────────────────────┼───────────────────────────────────────────────────────┤
+  │ L4   │ Live                 │ t สามารถ fire ได้จากทุก Reachable Marking (อาจต้องผ่านลำดับ firing บางอย่างก่อน) │ ไม่ว่าระบบจะอยู่ในสถานะใด กระบวนการนั้นยังมีโอกาสเกิดขึ้นได้เสมอ  │
+  └──────┴──────────────────────┴───────────────────────────────────────────────────────────────────────────┴───────────────────────────────────────────────────────┘
+
+  ความสำคัญในงานวิจัยนี้: สำหรับ Aircraft Turnaround Process สิ่งที่ต้องการคืออย่างน้อย L1-Liveness สำหรับทุก Transition ที่สำคัญ กล่าวคือ ทุกกระบวนการ (Refueling, Catering, Cleaning, Baggage, Maintenance)
+  ต้องสามารถดำเนินการจนเสร็จสิ้นได้ หากเป็นแบบจำลองที่รองรับเที่ยวบินหลายเที่ยว (Multiple Turnaround Cycles) จะต้องการ L4-Liveness เพื่อยืนยันว่าทุกกระบวนการพร้อมทำงานซ้ำได้เสมอ
+
+  3.2.4 Boundedness
+
+  Definition 9 (Boundedness): Place p เรียกว่า k-bounded ก็ต่อเมื่อ สำหรับทุก Marking M ∈ R(M₀): M(p) ≤ k โดย Petri Net เรียกว่า bounded ถ้าทุก Place เป็น bounded
+
+  ความสำคัญในงานวิจัยนี้: Boundedness รับประกันว่าทรัพยากรจะไม่ถูกใช้เกินขีดจำกัด เช่น จำนวนรถ GSE ที่อยู่ในพื้นที่ Apron ต้องไม่เกินจำนวนที่พื้นที่รองรับได้ และ Reachability Graph ของ Bounded Petri Net จะมีขนาดจำกัด
+  ทำให้สามารถวิเคราะห์ได้อย่างครบถ้วน
+
+  3.3 วิธีการวิเคราะห์ (Analysis Techniques)
+
+  3.3.1 Reachability Graph Construction
+
+  สำหรับ Bounded Petri Net สามารถสร้าง Reachability Graph ได้อย่างสมบูรณ์ โดยเริ่มจาก M₀ แล้วทดลอง fire ทุก Transition ที่ enabled ทีละตัว บันทึก Marking ใหม่ที่ได้ และทำซ้ำจนไม่มี Marking ใหม่เกิดขึ้น Reachabil
+   Graph ที่ได้จะแสดง ทุกสถานะที่เป็นไปได้ (All Possible States) และ ทุกลำดับเหตุการณ์ที่เป็นไปได้ (All Possible Scenarios) ของระบบ
+
+  การตรวจสอบ Deadlock ทำได้โดยค้นหา Node ใน Reachability Graph ที่ไม่มี Outgoing Edge (Dead Marking) หากพบ Dead Marking ที่ไม่ใช่ Final State → ระบบมี Deadlock
+
+  3.3.2 Structural Analysis: Place Invariants and Transition Invariants
+
+  Place Invariant (P-Invariant): คือเวกเตอร์ y ≥ 0 ที่ yᵀ · C = 0 (โดย C คือ Incidence Matrix) P-Invariant แสดงกฎอนุรักษ์ (Conservation Law) ของ Token ในระบบ ตัวอย่างเช่น จำนวน Token ใน Places
+  ที่เกี่ยวกับรถเติมน้ำมัน (Available + In_Use) ต้องคงที่เสมอ ซึ่งสะท้อนว่าจำนวนรถเติมน้ำมันทั้งหมดในระบบไม่เปลี่ยนแปลง
+
+  Transition Invariant (T-Invariant): คือเวกเตอร์ x ≥ 0 ที่ C · x = 0 T-Invariant แสดงลำดับ firing ที่ทำให้ระบบกลับมาสู่ Marking เดิม ซึ่งมีประโยชน์ในการยืนยันว่าระบบสามารถทำ Turnaround Cycle ได้ครบวงจร
+
+  3.3.3 Siphon and Trap Analysis
+
+  Definition 10 (Siphon): เซตของ Places S ⊆ P เรียกว่า Siphon ก็ต่อเมื่อ •S ⊆ S• (ทุก Transition ที่มี Output เข้าสู่ S ต้องมี Input จาก S ด้วย) คุณสมบัติสำคัญคือ: ถ้า Siphon ว่าง (ทุก Place ใน S มี Token = 0)
+  แล้ว Siphon จะว่างตลอดไป
+
+  ความเชื่อมโยงกับ Deadlock: Commoner's Theorem ระบุว่า สำหรับ Petri Net บางประเภท (เช่น Free-Choice Net) Deadlock จะเกิดขึ้นก็ต่อเมื่อมี Siphon ที่ว่าง ดังนั้น การวิเคราะห์ Siphon
+  จึงเป็นเครื่องมือสำคัญในการค้นหาและป้องกัน Deadlock โดยสามารถเพิ่มกลไกควบคุม (Control Place) เพื่อรับประกันว่า Siphon จะไม่มีวันว่าง
+
+  3.4 ภาพรวมของ Aircraft Turnaround Process
+
+  (ส่วนนี้อธิบายบริบทของ domain ให้ผู้อ่านที่ไม่มีพื้นฐานด้านการบินเข้าใจ)
+
+  Aircraft Turnaround Process คือกระบวนการทั้งหมดที่เกิดขึ้นตั้งแต่เครื่องบินมาถึงหลุมจอด (Bay) จนกระทั่งเครื่องบินออกจากหลุมจอดเพื่อเที่ยวบินถัดไป โดยทั่วไปแบ่งเป็น 3 ช่วง:
+
+  ช่วงที่ 1: Arrival & Docking — เครื่องบินถูกนำเข้าสู่หลุมจอดโดย Marshaller หรือระบบ VDGS จากนั้นวางหนุนล้อ (Chocks) เสียบสาย Ground Power และต่อสะพานเทียบ (Jet Bridge) เพื่อระบายผู้โดยสาร กระบวนการในช่วงนี้เป็
+   Sequential (ทำเรียงลำดับ)
+
+  ช่วงที่ 2: Ground Handling — ช่วงที่มีความซับซ้อนสูงสุด เนื่องจากหลายกระบวนการทำงานพร้อมกัน:
+
+
+
+
+                      ┌─→ Refueling ─────────────┐
+                      ├─→ Catering ──────────────┤
+  Pax Debarked ──────┼─→ Cabin Cleaning ────────┼──→ Ready for Boarding
+                      ├─→ Baggage Handling ──────┤
+                      └─→ Transit Maintenance ───┘
+
+
+  ทุกกระบวนการใช้พื้นที่รอบเครื่องบินร่วมกัน และมีข้อจำกัดด้านความปลอดภัย เช่น:
+  - ห้ามเปิดประตูผู้โดยสารขณะเติมน้ำมัน (หากไม่มีมาตรการป้องกันอัคคีภัย)
+  - การขนกระเป๋าต้องเสร็จก่อนคำนวณ Weight & Balance
+
+  ช่วงที่ 3: Departure Preparation — คำนวณ Weight & Balance ให้กัปตันอนุมัติ Loadsheet จากนั้นผู้โดยสารขึ้นเครื่อง ปิดประตู และ Pushback กระบวนการในช่วงนี้กลับมาเป็น Sequential อีกครั้ง โดยมี precondition
+  ว่าทุกกระบวนการในช่วงที่ 2 ต้องเสร็จสิ้นทั้งหมด
+
+  3.5 หน่วยงานที่เกี่ยวข้อง
+
+  ในการดำเนินงาน Aircraft Turnaround มีหน่วยงานหลัก 3 ส่วนที่ต้องประสานงานกัน:
+
+  ┌───────────────────────────┬─────────────────────────────────────────────┬────────────────────────────────────────────────────────────┐
+  │          หน่วยงาน          │                   หน้าที่หลัก                   │                      ตัวแทนในแบบจำลอง                       │
+  ├───────────────────────────┼─────────────────────────────────────────────┼────────────────────────────────────────────────────────────┤
+  │ ท่าอากาศยาน (ทอท./AOT)     │ บริหารจัดการสนามบิน ลานจอด หลุมจอด              │ Resource: Apron Zone, Bay                                  │
+  ├───────────────────────────┼─────────────────────────────────────────────┼────────────────────────────────────────────────────────────┤
+  │ บริษัท วิทยุการบินฯ (AEROTHAI) │ ควบคุมจราจรทางอากาศ อนุมัติการใช้ Runway/Taxiway │ Transition: t_taxi_clearance, t_pushback_clearance         │
+  ├───────────────────────────┼─────────────────────────────────────────────┼────────────────────────────────────────────────────────────┤
+  │ สายการบิน / Ground Handler │ ดำเนินการ Ground Handling ทั้งหมด              │ Agent: Refueling, Catering, Cleaning, Baggage, Maintenance │
+  └───────────────────────────┴─────────────────────────────────────────────┴────────────────────────────────────────────────────────────┘
+
+  ---
+  ทั้ง 3 ส่วนนี้เป็นพื้นฐานที่จะนำไปสู่ Section 4 (Proposed Model) ที่จะสร้าง Petri Net จริงๆ ครับ ถ้าต้องการให้เขียนส่วนที่ 4-7 ต่อ หรืออยากปรับส่วนไหนบอกได้เลยครับ
+                
+✻ Baked for 3m 22s                                                                                                                                                                      
+                             
+❯ ช้วยเขียน context ที่คุณสรุปมาให้  ที่พร้อมจะทำ ใส่ใน .txt ให้ที \                                                                                                                                 
+  โดยเอา หัวข้อตามนี้\                                                                                                                                                                  
+  1. ชื่อโครงงาน \                                                                                                                                                                        
+  2 ที่มาและความสำคัญ\                                                                                                                                                                     
+  3 วัตถุประสงค์ \                                                                                                                                                                         
+  4 ขอบเขต\                                                                                                                                                                             
+  5 วิธีการวิเคราะห์\                                                                                                                                                                       
+  6 ขั้นตอนการเนินงาน\                                                                                                                                                                     
+  \                                                                                                                                                                                     
+  \                                                                                                                                                                                     
+  โดยลักษณะการเขียน ให้อิงจาก file : /Users/70009215/Desktop/infrastructure/pipelines/formal_verification_proposal-1236813-17704433646968.pdf                                               
+                                                                                                                                                                                        
+⏺ Read 1 file (ctrl+o to expand)                                                                                                                                                        
+                                                                                                                                                                                        
+⏺ Now I understand the writing style from the PDF. Let me create the .txt file following that format.                                                                                   
+                                                                                                                                                                                        
+⏺ Write(pipelines/formal_verification_aircraft_turnaround_proposal.txt)                                                                                                                 
+  ⎿  Wrote 384 lines to pipelines/formal_verification_aircraft_turnaround_proposal.txt                                                                                                  
+     ================================================================================                                                                                                   
+             การทวนสอบเชิงรูปนัยกระบวนการบริหารจัดการเครื่องบินที่ภาคพื้นดิน                                                                                                                         
+                โดยใช้แบบจำลอง Petri Net เพื่อตรวจสอบ Deadlock และ Liveness                                                                                                                
+         (Formal Verification of Aircraft Turnaround Process Using Petri Net
+                   for Deadlock Detection and Liveness Analysis)                                                                                                                        
+                                                            
+                                         เสนอ                                                                                                                                           
+                             รศ. ดร. วิวัฒน์ วัฒนาวุฒิ                                                                                                                                        
+                           ผศ. ดร. เนื่องวงศ์ ทวยเจริญ                                                                                                                                      
+                                                                                                                                                                                        
+     … +374 lines (ctrl+o to expand)                                                                                                                                                    
+
+⏺ สร้างไฟล์เรียบร้อยแล้วครับที่:                                                                                                                                                                
+  /Users/70009215/Desktop/infrastructure/pipelines/formal_verification_aircraft_turnaround_proposal.txt
+                                                                                                                                                                                        
+  สรุปสิ่งที่เขียนให้ โดยอิงรูปแบบการเขียนจาก PDF ต้นแบบ:
+                                                                                                                                                                                        
+  ┌─────────────────────┬─────────────────────────────────────────────────────────────────────────────────────────────┐                                                                 
+  │        หัวข้อ         │                                   สิ่งที่เพิ่มเติมจาก PDF ต้นแบบ                                    │
+  ├─────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ 1. ชื่อโครงงาน        │ ระบุชัดเจนทั้งไทย-อังกฤษ เน้น Deadlock + Liveness                                                 │
+  ├─────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ 2. ที่มาและความสำคัญ   │ เพิ่มข้อมูลจาก ATC จริง, อธิบาย Parallel Processing, ตัวอย่าง Deadlock scenario, Safety constraints │
+  ├─────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ 3. วัตถุประสงค์        │ ขยายจาก 3 ข้อเป็น 6 ข้อ เพิ่มเรื่อง Deadlock-freedom, Liveness, Re-verification                    │
+  ├─────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ 4. ขอบเขต           │ เพิ่ม State จาก 10 เป็น 13 (Catering, Baggage, W&B), เพิ่ม GSE resources, แบ่งเงื่อนไขตาม 3 ช่วง     │
+  ├─────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ 5. วิธีการวิเคราะห์     │ เพิ่ม LTL แยก Safety/Liveness ชัดเจน, เพิ่ม Counterexample analysis                              │
+  ├─────────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────┤
+  │ 6. ขั้นตอนการดำเนินงาน │ อธิบายรายละเอียดแต่ละช่วงของ Turnaround จากข้อมูล ATC จริง, เพิ่มขั้นตอน Re-verification               │
+  └─────────────────────┴─────────────────────────────────────────────────────────────────────────────────────────────┘
+
+  ถ้าต้องการปรับแก้ส่วนไหนบอกได้เลยครับ

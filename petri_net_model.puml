@@ -1,0 +1,281 @@
+@startuml petri_net_aircraft_turnaround
+title Petri Net Model: Aircraft Turnaround Process\n(Overview - Single Aircraft with Shared Resources)
+
+' ============================================================
+' STYLE SETTINGS
+' ============================================================
+skinparam backgroundColor white
+skinparam defaultFontSize 11
+
+' Place = circle (using usecase shape)
+' Transition = bar (using rectangle shape)
+
+skinparam usecase {
+    BackgroundColor<<place>> #FFFFFF
+    BorderColor<<place>> #333333
+    BackgroundColor<<resource>> #FFE4B5
+    BorderColor<<resource>> #CC8800
+    BackgroundColor<<token>> #90EE90
+    BorderColor<<token>> #228B22
+    BackgroundColor<<done>> #E0E0FF
+    BorderColor<<done>> #4444CC
+}
+
+skinparam rectangle {
+    BackgroundColor<<transition>> #333333
+    FontColor<<transition>> #FFFFFF
+    BorderColor<<transition>> #000000
+    BackgroundColor<<sync>> #8B0000
+    FontColor<<sync>> #FFFFFF
+    BorderColor<<sync>> #8B0000
+}
+
+' ============================================================
+' LEGEND
+' ============================================================
+legend top left
+  |= Symbol |= Meaning |
+  | <back:#FFFFFF><border:#333> O </border></back> | Place (State) |
+  | <back:#FFE4B5><border:#CC8800> O </border></back> | Resource Place (Shared) |
+  | <back:#90EE90><border:#228B22> O </border></back> | Initial Token |
+  | <back:#333333><color:#FFF> [] </color></back> | Transition (Event) |
+  | <back:#8B0000><color:#FFF> [] </color></back> | Sync Transition |
+  | --> | Arc (flow) |
+endlegend
+
+' ============================================================
+' SHARED RESOURCE PLACES (center column)
+' ============================================================
+
+usecase "**Runway_Free**\n[1 token]" as R_free <<token>>
+usecase "**Bay_Free**\n[1 token]" as B_free <<token>>
+usecase "**Fuel_Free**\n[1 token]" as Fuel_free <<token>>
+usecase "**Catering_Free**\n[1 token]" as Cat_free <<token>>
+usecase "**Cleaning_Free**\n[1 token]" as Clean_free <<token>>
+usecase "**Baggage_Free**\n[1 token]" as Bag_free <<token>>
+usecase "**Apron_Free**\n[2 tokens]" as Apron_free <<token>>
+
+' ============================================================
+' PHASE 1: ARRIVAL & DOCKING (Sequential)
+' ============================================================
+
+usecase "**P_Waiting**\n[3 tokens]\nAircraft waiting\nto land" as P_wait <<token>>
+
+rectangle "t_land" <<transition>>
+usecase "P_Landing\nOn runway" as P_land <<place>>
+
+rectangle "t_taxi_in" <<transition>>
+usecase "P_Taxi_In\nMoving to gate" as P_taxi <<place>>
+
+rectangle "t_dock" <<transition>>
+usecase "P_Docked\nChocks & GPU on" as P_dock <<place>>
+
+rectangle "t_debark" <<transition>>
+usecase "P_Debarked\nPax off" as P_debark <<place>>
+
+' ============================================================
+' PHASE 2: GROUND HANDLING (Parallel) - 5 branches
+' ============================================================
+
+' --- Fork into 5 parallel processes ---
+rectangle "t_start_ground\n_handling" <<sync>>
+
+' Branch 1: Refueling
+usecase "P_Wait_Refuel" as P_wref <<place>>
+rectangle "t_start_refuel" <<transition>>
+usecase "P_Refueling\n(in progress)" as P_ref <<place>>
+rectangle "t_end_refuel" <<transition>>
+usecase "P_Refuel_Done" as P_refd <<done>>
+
+' Branch 2: Catering
+usecase "P_Wait_Catering" as P_wcat <<place>>
+rectangle "t_start_catering" <<transition>>
+usecase "P_Catering\n(in progress)" as P_cat <<place>>
+rectangle "t_end_catering" <<transition>>
+usecase "P_Catering_Done" as P_catd <<done>>
+
+' Branch 3: Cleaning
+usecase "P_Wait_Cleaning" as P_wcln <<place>>
+rectangle "t_start_cleaning" <<transition>>
+usecase "P_Cleaning\n(in progress)" as P_cln <<place>>
+rectangle "t_end_cleaning" <<transition>>
+usecase "P_Cleaning_Done" as P_clnd <<done>>
+
+' Branch 4: Baggage
+usecase "P_Wait_Baggage" as P_wbag <<place>>
+rectangle "t_start_baggage" <<transition>>
+usecase "P_Baggage\n(in progress)" as P_bag <<place>>
+rectangle "t_end_baggage" <<transition>>
+usecase "P_Baggage_Done" as P_bagd <<done>>
+
+' Branch 5: Maintenance
+usecase "P_Wait_Maint" as P_wmnt <<place>>
+rectangle "t_start_maint" <<transition>>
+usecase "P_Maintenance\n(in progress)" as P_mnt <<place>>
+rectangle "t_end_maint" <<transition>>
+usecase "P_Maint_Done" as P_mntd <<done>>
+
+' ============================================================
+' PHASE 3: DEPARTURE (Sequential)
+' ============================================================
+
+rectangle "t_all_done\n(join/sync)" <<sync>>
+usecase "P_GH_Complete\nGround handling\ncomplete" as P_ghd <<place>>
+
+rectangle "t_weight_balance" <<transition>>
+usecase "P_WB_Approved\nLoadsheet OK" as P_wb <<place>>
+
+rectangle "t_board" <<transition>>
+usecase "P_Boarded\nPax on, doors\nclosed" as P_board <<place>>
+
+rectangle "t_pushback" <<transition>>
+usecase "P_Pushback\nPushed from gate" as P_push <<place>>
+
+rectangle "t_takeoff" <<transition>>
+usecase "**P_Departed**\nAircraft gone" as P_gone <<place>>
+
+' ============================================================
+' ARCS: PHASE 1 (Arrival)
+' ============================================================
+
+P_wait --> "t_land"
+R_free --> "t_land" : acquire
+"t_land" --> P_land
+
+P_land --> "t_taxi_in"
+"t_taxi_in" --> P_taxi
+"t_taxi_in" --> R_free : release
+
+P_taxi --> "t_dock"
+B_free --> "t_dock" : acquire
+"t_dock" --> P_dock
+
+P_dock --> "t_debark"
+"t_debark" --> P_debark
+
+' ============================================================
+' ARCS: FORK into parallel ground handling
+' ============================================================
+
+P_debark --> "t_start_ground\n_handling"
+"t_start_ground\n_handling" --> P_wref
+"t_start_ground\n_handling" --> P_wcat
+"t_start_ground\n_handling" --> P_wcln
+"t_start_ground\n_handling" --> P_wbag
+"t_start_ground\n_handling" --> P_wmnt
+
+' ============================================================
+' ARCS: PHASE 2 (Ground Handling - each branch)
+' ============================================================
+
+' Refueling (needs Fuel_Free + Apron_Free)
+P_wref --> "t_start_refuel"
+Fuel_free --> "t_start_refuel" : acquire
+Apron_free --> "t_start_refuel" : acquire
+"t_start_refuel" --> P_ref
+
+P_ref --> "t_end_refuel"
+"t_end_refuel" --> P_refd
+"t_end_refuel" --> Fuel_free : release
+"t_end_refuel" --> Apron_free : release
+
+' Catering (needs Catering_Free + Apron_Free)
+P_wcat --> "t_start_catering"
+Cat_free --> "t_start_catering" : acquire
+Apron_free --> "t_start_catering" : acquire
+"t_start_catering" --> P_cat
+
+P_cat --> "t_end_catering"
+"t_end_catering" --> P_catd
+"t_end_catering" --> Cat_free : release
+"t_end_catering" --> Apron_free : release
+
+' Cleaning (needs Cleaning_Free, NO apron needed - works inside cabin)
+P_wcln --> "t_start_cleaning"
+Clean_free --> "t_start_cleaning" : acquire
+"t_start_cleaning" --> P_cln
+
+P_cln --> "t_end_cleaning"
+"t_end_cleaning" --> P_clnd
+"t_end_cleaning" --> Clean_free : release
+
+' Baggage (needs Baggage_Free + Apron_Free)
+P_wbag --> "t_start_baggage"
+Bag_free --> "t_start_baggage" : acquire
+Apron_free --> "t_start_baggage" : acquire
+"t_start_baggage" --> P_bag
+
+P_bag --> "t_end_baggage"
+"t_end_baggage" --> P_bagd
+"t_end_baggage" --> Bag_free : release
+"t_end_baggage" --> Apron_free : release
+
+' Maintenance (no special resource - just inspector walking around)
+P_wmnt --> "t_start_maint"
+"t_start_maint" --> P_mnt
+
+P_mnt --> "t_end_maint"
+"t_end_maint" --> P_mntd
+
+' ============================================================
+' ARCS: JOIN (all 5 must complete)
+' ============================================================
+
+P_refd --> "t_all_done\n(join/sync)"
+P_catd --> "t_all_done\n(join/sync)"
+P_clnd --> "t_all_done\n(join/sync)"
+P_bagd --> "t_all_done\n(join/sync)"
+P_mntd --> "t_all_done\n(join/sync)"
+"t_all_done\n(join/sync)" --> P_ghd
+
+' ============================================================
+' ARCS: PHASE 3 (Departure)
+' ============================================================
+
+P_ghd --> "t_weight_balance"
+"t_weight_balance" --> P_wb
+
+P_wb --> "t_board"
+"t_board" --> P_board
+
+P_board --> "t_pushback"
+"t_pushback" --> P_push
+"t_pushback" --> B_free : release
+
+P_push --> "t_takeoff"
+R_free --> "t_takeoff" : acquire
+"t_takeoff" --> P_gone
+"t_takeoff" ..> R_free : release\n(after takeoff)
+
+' ============================================================
+' NOTES
+' ============================================================
+
+note bottom of P_wait
+  Initial state:
+  3 tokens = 3 aircraft
+  (A1, A2, A3)
+end note
+
+note right of Apron_free
+  **CRITICAL RESOURCE**
+  Only 2 slots available
+  but 3 GSE types need it:
+  Fuel, Catering, Baggage
+  -> Potential **DEADLOCK**
+end note
+
+note bottom of "t_pushback"
+  **SAFETY CONSTRAINT**
+  Cannot fire if any
+  aircraft is still in
+  P_Refueling state
+end note
+
+note bottom of P_gone
+  Final state:
+  When all 3 tokens here
+  = system complete
+end note
+
+@enduml

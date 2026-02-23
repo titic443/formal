@@ -1,0 +1,288 @@
+@startuml petri_net_ground_handling_deadlock
+title Petri Net Model: Ground Handling Detail\n(Focus on Resource Contention & Deadlock Scenario)\n3 Aircraft x Shared Apron Zones
+
+skinparam backgroundColor white
+skinparam defaultFontSize 10
+
+skinparam usecase {
+    BackgroundColor<<place>> #FFFFFF
+    BorderColor<<place>> #333333
+    BackgroundColor<<resource>> #FFE4B5
+    BorderColor<<resource>> #CC8800
+    BackgroundColor<<token>> #90EE90
+    BorderColor<<token>> #228B22
+    BackgroundColor<<done>> #E0E0FF
+    BorderColor<<done>> #4444CC
+    BackgroundColor<<danger>> #FFB3B3
+    BorderColor<<danger>> #CC0000
+}
+
+skinparam rectangle {
+    BackgroundColor<<transition>> #333333
+    FontColor<<transition>> #FFFFFF
+    BorderColor<<transition>> #000000
+}
+
+legend top left
+  |= Symbol |= Meaning |
+  | <back:#FFE4B5><border:#CC8800> O </border></back> | Shared Resource (limited) |
+  | <back:#FFB3B3><border:#CC0000> O </border></back> | Deadlock-prone area |
+  | <back:#90EE90><border:#228B22> O </border></back> | Token (initial) |
+  | <back:#E0E0FF><border:#44C> O </border></back> | Completion place |
+endlegend
+
+' ============================================================
+' SHARED RESOURCES (Center)
+' ============================================================
+
+usecase "**Fuel_Free**\n[1 token]" as FUEL <<token>>
+usecase "**Catering_Free**\n[1 token]" as CAT <<token>>
+usecase "**Cleaning_Free**\n[1 token]" as CLN <<token>>
+usecase "**Baggage_Free**\n[1 token]" as BAG <<token>>
+usecase "**Apron_Zone**\n**[2 tokens]**" as APRON <<danger>>
+
+' ============================================================
+' AIRCRAFT 1 (A1)
+' ============================================================
+
+package "Aircraft A1" as A1 {
+    usecase "P_A1_Debarked" as A1_deb <<token>>
+
+    usecase "P_A1_W_Ref" as A1_wr <<place>>
+    usecase "P_A1_W_Cat" as A1_wc <<place>>
+    usecase "P_A1_W_Cln" as A1_wcl <<place>>
+    usecase "P_A1_W_Bag" as A1_wb <<place>>
+    usecase "P_A1_W_Mnt" as A1_wm <<place>>
+
+    rectangle "t_A1_fork" <<transition>>
+
+    rectangle "t_A1_s_ref" <<transition>>
+    usecase "A1_Refueling" as A1_ref <<place>>
+    rectangle "t_A1_e_ref" <<transition>>
+    usecase "A1_Ref_Done" as A1_rd <<done>>
+
+    rectangle "t_A1_s_cat" <<transition>>
+    usecase "A1_Catering" as A1_cat <<place>>
+    rectangle "t_A1_e_cat" <<transition>>
+    usecase "A1_Cat_Done" as A1_cd <<done>>
+
+    rectangle "t_A1_s_cln" <<transition>>
+    usecase "A1_Cleaning" as A1_cln <<place>>
+    rectangle "t_A1_e_cln" <<transition>>
+    usecase "A1_Cln_Done" as A1_cld <<done>>
+
+    rectangle "t_A1_s_bag" <<transition>>
+    usecase "A1_Baggage" as A1_bag <<place>>
+    rectangle "t_A1_e_bag" <<transition>>
+    usecase "A1_Bag_Done" as A1_bd <<done>>
+
+    rectangle "t_A1_s_mnt" <<transition>>
+    usecase "A1_Maint" as A1_mnt <<place>>
+    rectangle "t_A1_e_mnt" <<transition>>
+    usecase "A1_Mnt_Done" as A1_md <<done>>
+
+    rectangle "t_A1_join" <<transition>>
+    usecase "A1_GH_Done" as A1_ghd <<done>>
+}
+
+' A1 internal arcs
+A1_deb --> "t_A1_fork"
+"t_A1_fork" --> A1_wr
+"t_A1_fork" --> A1_wc
+"t_A1_fork" --> A1_wcl
+"t_A1_fork" --> A1_wb
+"t_A1_fork" --> A1_wm
+
+A1_wr --> "t_A1_s_ref"
+"t_A1_s_ref" --> A1_ref
+A1_ref --> "t_A1_e_ref"
+"t_A1_e_ref" --> A1_rd
+
+A1_wc --> "t_A1_s_cat"
+"t_A1_s_cat" --> A1_cat
+A1_cat --> "t_A1_e_cat"
+"t_A1_e_cat" --> A1_cd
+
+A1_wcl --> "t_A1_s_cln"
+"t_A1_s_cln" --> A1_cln
+A1_cln --> "t_A1_e_cln"
+"t_A1_e_cln" --> A1_cld
+
+A1_wb --> "t_A1_s_bag"
+"t_A1_s_bag" --> A1_bag
+A1_bag --> "t_A1_e_bag"
+"t_A1_e_bag" --> A1_bd
+
+A1_wm --> "t_A1_s_mnt"
+"t_A1_s_mnt" --> A1_mnt
+A1_mnt --> "t_A1_e_mnt"
+"t_A1_e_mnt" --> A1_md
+
+A1_rd --> "t_A1_join"
+A1_cd --> "t_A1_join"
+A1_cld --> "t_A1_join"
+A1_bd --> "t_A1_join"
+A1_md --> "t_A1_join"
+"t_A1_join" --> A1_ghd
+
+' ============================================================
+' AIRCRAFT 2 (A2) - Simplified
+' ============================================================
+
+package "Aircraft A2" as A2 {
+    usecase "P_A2_Debarked" as A2_deb <<place>>
+
+    rectangle "t_A2_fork" <<transition>>
+    usecase "A2_W_Ref" as A2_wr <<place>>
+    usecase "A2_W_Cat" as A2_wc <<place>>
+    usecase "A2_W_Cln" as A2_wcl <<place>>
+    usecase "A2_W_Bag" as A2_wb <<place>>
+    usecase "A2_W_Mnt" as A2_wm <<place>>
+
+    rectangle "t_A2_s_ref" <<transition>>
+    usecase "A2_Refueling" as A2_ref <<place>>
+    rectangle "t_A2_e_ref" <<transition>>
+    usecase "A2_Ref_Done" as A2_rd <<done>>
+
+    rectangle "t_A2_s_cat" <<transition>>
+    usecase "A2_Catering" as A2_cat <<place>>
+    rectangle "t_A2_e_cat" <<transition>>
+    usecase "A2_Cat_Done" as A2_cd <<done>>
+
+    rectangle "t_A2_s_cln" <<transition>>
+    usecase "A2_Cleaning" as A2_cln <<place>>
+    rectangle "t_A2_e_cln" <<transition>>
+    usecase "A2_Cln_Done" as A2_cld <<done>>
+
+    rectangle "t_A2_s_bag" <<transition>>
+    usecase "A2_Baggage" as A2_bag <<place>>
+    rectangle "t_A2_e_bag" <<transition>>
+    usecase "A2_Bag_Done" as A2_bd <<done>>
+
+    rectangle "t_A2_s_mnt" <<transition>>
+    usecase "A2_Maint" as A2_mnt <<place>>
+    rectangle "t_A2_e_mnt" <<transition>>
+    usecase "A2_Mnt_Done" as A2_md <<done>>
+
+    rectangle "t_A2_join" <<transition>>
+    usecase "A2_GH_Done" as A2_ghd <<done>>
+}
+
+' A2 internal arcs
+A2_deb --> "t_A2_fork"
+"t_A2_fork" --> A2_wr
+"t_A2_fork" --> A2_wc
+"t_A2_fork" --> A2_wcl
+"t_A2_fork" --> A2_wb
+"t_A2_fork" --> A2_wm
+
+A2_wr --> "t_A2_s_ref"
+"t_A2_s_ref" --> A2_ref
+A2_ref --> "t_A2_e_ref"
+"t_A2_e_ref" --> A2_rd
+
+A2_wc --> "t_A2_s_cat"
+"t_A2_s_cat" --> A2_cat
+A2_cat --> "t_A2_e_cat"
+"t_A2_e_cat" --> A2_cd
+
+A2_wcl --> "t_A2_s_cln"
+"t_A2_s_cln" --> A2_cln
+A2_cln --> "t_A2_e_cln"
+"t_A2_e_cln" --> A2_cld
+
+A2_wb --> "t_A2_s_bag"
+"t_A2_s_bag" --> A2_bag
+A2_bag --> "t_A2_e_bag"
+"t_A2_e_bag" --> A2_bd
+
+A2_wm --> "t_A2_s_mnt"
+"t_A2_s_mnt" --> A2_mnt
+A2_mnt --> "t_A2_e_mnt"
+"t_A2_e_mnt" --> A2_md
+
+A2_rd --> "t_A2_join"
+A2_cd --> "t_A2_join"
+A2_cld --> "t_A2_join"
+A2_bd --> "t_A2_join"
+A2_md --> "t_A2_join"
+"t_A2_join" --> A2_ghd
+
+' ============================================================
+' RESOURCE ARCS - A1 (acquire/release)
+' ============================================================
+
+' A1 Refueling: needs Fuel + Apron
+FUEL --> "t_A1_s_ref" : acquire
+APRON --> "t_A1_s_ref" : acquire
+"t_A1_e_ref" --> FUEL : release
+"t_A1_e_ref" --> APRON : release
+
+' A1 Catering: needs Catering + Apron
+CAT --> "t_A1_s_cat" : acquire
+APRON --> "t_A1_s_cat" : acquire
+"t_A1_e_cat" --> CAT : release
+"t_A1_e_cat" --> APRON : release
+
+' A1 Cleaning: needs Cleaning only (inside cabin)
+CLN --> "t_A1_s_cln" : acquire
+"t_A1_e_cln" --> CLN : release
+
+' A1 Baggage: needs Baggage + Apron
+BAG --> "t_A1_s_bag" : acquire
+APRON --> "t_A1_s_bag" : acquire
+"t_A1_e_bag" --> BAG : release
+"t_A1_e_bag" --> APRON : release
+
+' ============================================================
+' RESOURCE ARCS - A2 (acquire/release)
+' ============================================================
+
+FUEL --> "t_A2_s_ref" : acquire
+APRON --> "t_A2_s_ref" : acquire
+"t_A2_e_ref" --> FUEL : release
+"t_A2_e_ref" --> APRON : release
+
+CAT --> "t_A2_s_cat" : acquire
+APRON --> "t_A2_s_cat" : acquire
+"t_A2_e_cat" --> CAT : release
+"t_A2_e_cat" --> APRON : release
+
+CLN --> "t_A2_s_cln" : acquire
+"t_A2_e_cln" --> CLN : release
+
+BAG --> "t_A2_s_bag" : acquire
+APRON --> "t_A2_s_bag" : acquire
+"t_A2_e_bag" --> BAG : release
+"t_A2_e_bag" --> APRON : release
+
+' ============================================================
+' NOTES
+' ============================================================
+
+note right of APRON
+  **DEADLOCK SCENARIO:**
+  Apron has only 2 tokens (slots)
+  but 3 GSE types need it:
+  Fuel, Catering, Baggage
+
+  If A1 holds 1 apron for Fuel
+  and A2 holds 1 apron for Catering
+  -> No apron left for Baggage
+  -> Both A1 & A2 stuck waiting
+     for Baggage to finish
+  -> But Baggage can't start!
+  -> **DEADLOCK**
+
+  **FIX: Add GSE_Permit place**
+  **with 2 tokens to limit**
+  **concurrent GSE operations**
+end note
+
+note bottom of A1_ghd
+  All 5 branches must
+  complete before join
+  can fire
+end note
+
+@enduml

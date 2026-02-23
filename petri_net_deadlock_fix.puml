@@ -1,0 +1,199 @@
+@startuml petri_net_deadlock_resolution
+title Petri Net Model: Deadlock Resolution\nBefore vs After adding GSE Permit Control Place
+
+skinparam backgroundColor white
+skinparam defaultFontSize 11
+
+skinparam usecase {
+    BackgroundColor<<place>> #FFFFFF
+    BorderColor<<place>> #333333
+    BackgroundColor<<resource>> #FFE4B5
+    BorderColor<<resource>> #CC8800
+    BackgroundColor<<token>> #90EE90
+    BorderColor<<token>> #228B22
+    BackgroundColor<<fix>> #B3FFB3
+    BorderColor<<fix>> #006600
+    BackgroundColor<<danger>> #FFB3B3
+    BorderColor<<danger>> #CC0000
+}
+
+skinparam rectangle {
+    BackgroundColor<<transition>> #333333
+    FontColor<<transition>> #FFFFFF
+    BackgroundColor<<dead>> #CC0000
+    FontColor<<dead>> #FFFFFF
+}
+
+' ============================================================
+'  LEFT SIDE: BEFORE (with Deadlock)
+' ============================================================
+
+package "BEFORE: Deadlock Possible" as BEFORE #FFEEEE {
+
+    usecase "Apron_Zone\n[2 tokens]" as B_apron <<danger>>
+    usecase "Fuel_Free\n[1]" as B_fuel <<resource>>
+    usecase "Cat_Free\n[1]" as B_cat <<resource>>
+    usecase "Bag_Free\n[1]" as B_bag <<resource>>
+
+    ' A1 operations
+    usecase "A1_W_Ref" as B_a1wr <<place>>
+    usecase "A1_W_Cat" as B_a1wc <<place>>
+    usecase "A1_W_Bag" as B_a1wb <<place>>
+
+    rectangle "t_A1_s_ref" as B_t1r <<transition>>
+    rectangle "t_A1_s_cat" as B_t1c <<transition>>
+    rectangle "t_A1_s_bag" as B_t1b <<transition>>
+
+    usecase "A1_Refueling" as B_a1r <<place>>
+    usecase "A1_Catering" as B_a1c <<place>>
+    usecase "A1_Baggage" as B_a1bg <<place>>
+
+    ' A2 operations
+    usecase "A2_W_Ref" as B_a2wr <<place>>
+    usecase "A2_W_Cat" as B_a2wc <<place>>
+    usecase "A2_W_Bag" as B_a2wb <<place>>
+
+    rectangle "t_A2_s_ref" as B_t2r <<transition>>
+    rectangle "t_A2_s_cat" as B_t2c <<transition>>
+    rectangle "t_A2_s_bag" as B_t2b <<transition>>
+
+    usecase "A2_Refueling" as B_a2r <<place>>
+    usecase "A2_Catering" as B_a2c <<place>>
+    usecase "A2_Baggage" as B_a2bg <<place>>
+
+    ' Arcs A1
+    B_a1wr --> B_t1r
+    B_fuel --> B_t1r
+    B_apron --> B_t1r
+    B_t1r --> B_a1r
+
+    B_a1wc --> B_t1c
+    B_cat --> B_t1c
+    B_apron --> B_t1c
+    B_t1c --> B_a1c
+
+    B_a1wb --> B_t1b
+    B_bag --> B_t1b
+    B_apron --> B_t1b
+    B_t1b --> B_a1bg
+
+    ' Arcs A2
+    B_a2wr --> B_t2r
+    B_fuel --> B_t2r
+    B_apron --> B_t2r
+    B_t2r --> B_a2r
+
+    B_a2wc --> B_t2c
+    B_cat --> B_t2c
+    B_apron --> B_t2c
+    B_t2c --> B_a2c
+
+    B_a2wb --> B_t2b
+    B_bag --> B_t2b
+    B_apron --> B_t2b
+    B_t2b --> B_a2bg
+}
+
+note bottom of BEFORE
+  **Deadlock Trace:**
+  1. t_A1_s_ref fires -> acquires Fuel + Apron(1)
+  2. t_A2_s_cat fires -> acquires Cat + Apron(2)
+  3. Apron = 0 tokens left!
+  4. t_A1_s_cat BLOCKED (no Apron)
+  5. t_A1_s_bag BLOCKED (no Apron)
+  6. t_A2_s_ref BLOCKED (no Fuel, no Apron)
+  7. t_A2_s_bag BLOCKED (no Apron)
+  8. A1 waits for Apron, A2 waits for Apron
+  9. Nobody can release Apron -> **DEADLOCK!**
+end note
+
+' ============================================================
+'  RIGHT SIDE: AFTER (Deadlock Fixed)
+' ============================================================
+
+package "AFTER: Deadlock-Free (with GSE Permit)" as AFTER #EEFFEE {
+
+    usecase "Apron_Zone\n[2 tokens]" as A_apron <<resource>>
+    usecase "Fuel_Free\n[1]" as A_fuel <<resource>>
+    usecase "Cat_Free\n[1]" as A_cat <<resource>>
+    usecase "Bag_Free\n[1]" as A_bag <<resource>>
+
+    usecase "**GSE_Permit**\n**[2 tokens]**\n(Control Place)" as A_permit <<fix>>
+
+    ' A1 operations
+    usecase "A1_W_Ref" as A_a1wr <<place>>
+    usecase "A1_W_Cat" as A_a1wc <<place>>
+    usecase "A1_W_Bag" as A_a1wb <<place>>
+
+    rectangle "t_A1_s_ref" as A_t1r <<transition>>
+    rectangle "t_A1_s_cat" as A_t1c <<transition>>
+    rectangle "t_A1_s_bag" as A_t1b <<transition>>
+
+    usecase "A1_Refueling" as A_a1r <<place>>
+    usecase "A1_Catering" as A_a1c <<place>>
+    usecase "A1_Baggage" as A_a1bg <<place>>
+
+    rectangle "t_A1_e_ref" as A_t1re <<transition>>
+    rectangle "t_A1_e_cat" as A_t1ce <<transition>>
+    rectangle "t_A1_e_bag" as A_t1be <<transition>>
+
+    usecase "A1_Ref_Done" as A_a1rd <<place>>
+    usecase "A1_Cat_Done" as A_a1cd <<place>>
+    usecase "A1_Bag_Done" as A_a1bd <<place>>
+
+    ' Arcs A1 with permit
+    A_a1wr --> A_t1r
+    A_fuel --> A_t1r
+    A_apron --> A_t1r
+    A_permit --> A_t1r : **acquire**
+    A_t1r --> A_a1r
+
+    A_a1wc --> A_t1c
+    A_cat --> A_t1c
+    A_apron --> A_t1c
+    A_permit --> A_t1c : **acquire**
+    A_t1c --> A_a1c
+
+    A_a1wb --> A_t1b
+    A_bag --> A_t1b
+    A_apron --> A_t1b
+    A_permit --> A_t1b : **acquire**
+    A_t1b --> A_a1bg
+
+    ' Release arcs
+    A_a1r --> A_t1re
+    A_t1re --> A_a1rd
+    A_t1re --> A_fuel : release
+    A_t1re --> A_apron : release
+    A_t1re --> A_permit : **release**
+
+    A_a1c --> A_t1ce
+    A_t1ce --> A_a1cd
+    A_t1ce --> A_cat : release
+    A_t1ce --> A_apron : release
+    A_t1ce --> A_permit : **release**
+
+    A_a1bg --> A_t1be
+    A_t1be --> A_a1bd
+    A_t1be --> A_bag : release
+    A_t1be --> A_apron : release
+    A_t1be --> A_permit : **release**
+}
+
+note bottom of AFTER
+  **Why it works:**
+  GSE_Permit has 2 tokens = max 2 concurrent GSE ops
+  (matches Apron_Zone capacity of 2)
+
+  1. t_A1_s_ref fires -> Permit=1, Apron=1
+  2. t_A1_s_cat fires -> Permit=0, Apron=0
+  3. t_A2_s_* ALL BLOCKED (no Permit)
+  4. A1 finishes refuel -> Permit=1, Apron=1
+  5. Now A1 can do baggage OR A2 can start
+  6. **No circular wait possible!**
+
+  This is the **Ordered Resource Acquisition**
+  strategy - classic deadlock prevention.
+end note
+
+@enduml

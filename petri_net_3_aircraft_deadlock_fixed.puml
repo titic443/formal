@@ -1,0 +1,387 @@
+@startuml petri_net_3_aircraft_deadlock_fixed
+title **Petri Net Model: Aircraft Turnaround Process — Deadlock-Free**\n**3 Aircraft + GSE Permit Control Place (Deadlock Fix)**
+
+skinparam backgroundColor white
+skinparam defaultFontSize 10
+skinparam ranksep 30
+skinparam nodesep 15
+
+' ============================================================
+' STYLES
+' ============================================================
+skinparam usecase {
+    BackgroundColor<<state>> #FFFFFF
+    BorderColor<<state>> #444444
+
+    BackgroundColor<<resource>> #FFF3CD
+    BorderColor<<resource>> #CC8800
+
+    BackgroundColor<<initial>> #D4EDDA
+    BorderColor<<initial>> #228B22
+
+    BackgroundColor<<done>> #D6E9FF
+    BorderColor<<done>> #3366CC
+
+    BackgroundColor<<final>> #FFD700
+    BorderColor<<final>> #B8860B
+
+    BackgroundColor<<control>> #C8E6C9
+    BorderColor<<control>> #2E7D32
+}
+
+skinparam rectangle {
+    BackgroundColor<<t>> #444444
+    FontColor<<t>> white
+    BorderColor<<t>> #222222
+
+    BackgroundColor<<fork>> #1A5276
+    FontColor<<fork>> white
+
+    BackgroundColor<<join>> #1A5276
+    FontColor<<join>> white
+
+    BackgroundColor<<safety>> #922B21
+    FontColor<<safety>> white
+}
+
+' ============================================================
+' SHARED RESOURCES
+' ============================================================
+
+usecase "**Runway**\n**Available**\n(1 token)" as RWY <<initial>>
+usecase "**Gate/Bay**\n**Available**\n(1 token)" as BAY <<initial>>
+usecase "**Fuel Truck**\n**Available**\n(1 token)" as FUEL <<resource>>
+usecase "**Catering Truck**\n**Available**\n(1 token)" as CAT_R <<resource>>
+usecase "**Cleaning Team**\n**Available**\n(1 token)" as CLN_R <<resource>>
+usecase "**Baggage Cart**\n**Available**\n(1 token)" as BAG_R <<resource>>
+usecase "**Apron Zone**\n**Slots Available**\n(2 tokens)" as APRON <<resource>>
+
+usecase "**GSE Permit**\n**(Control Place)**\n**[2 tokens]**" as PERMIT <<control>>
+
+' ============================================================
+' ARRIVAL (Shared by all 3 aircraft)
+' ============================================================
+
+usecase "**3 Aircraft**\n**Waiting to Land**\n(3 tokens)" as WAIT <<initial>>
+
+rectangle "Land on\nRunway" as T_LAND <<t>>
+usecase "Aircraft\non Runway" as ON_RWY <<state>>
+rectangle "Taxi to\nGate" as T_TAXI <<t>>
+usecase "Aircraft\nTaxiing" as TAXIING <<state>>
+rectangle "Dock at Gate\n(Chocks + GPU)" as T_DOCK <<t>>
+usecase "Aircraft\nDocked" as DOCKED <<state>>
+rectangle "Passengers\nDisembark" as T_DEBARK <<t>>
+usecase "All Passengers\nOff Aircraft" as PAX_OFF <<state>>
+
+WAIT --> T_LAND
+RWY --> T_LAND : "acquire\nrunway"
+T_LAND --> ON_RWY
+ON_RWY --> T_TAXI
+T_TAXI --> TAXIING
+T_TAXI --> RWY : "release\nrunway"
+TAXIING --> T_DOCK
+BAY --> T_DOCK : "acquire\ngate"
+T_DOCK --> DOCKED
+DOCKED --> T_DEBARK
+T_DEBARK --> PAX_OFF
+
+note right of T_LAND
+  Runway มี 1 token
+  เครื่องลงจอดทีละลำ
+  A1 -> A2 -> A3
+end note
+
+note right of T_DOCK
+  Bay มี 1 token
+  จอดได้ทีละลำ
+  ลำก่อนต้อง Pushback
+  ออกก่อน
+end note
+
+' ============================================================
+' FORK: Parallel Ground Handling
+' ============================================================
+
+rectangle "Start Ground\nHandling\n(FORK)" as T_FORK <<fork>>
+PAX_OFF --> T_FORK
+
+usecase "Waiting for\nRefueling" as W_FUEL <<state>>
+usecase "Waiting for\nCatering" as W_CAT <<state>>
+usecase "Waiting for\nCleaning" as W_CLN <<state>>
+usecase "Waiting for\nBaggage\nHandling" as W_BAG <<state>>
+usecase "Waiting for\nMaintenance\nInspection" as W_MNT <<state>>
+
+T_FORK --> W_FUEL
+T_FORK --> W_CAT
+T_FORK --> W_CLN
+T_FORK --> W_BAG
+T_FORK --> W_MNT
+
+' ============================================================
+' BRANCH 1: REFUELING (needs Fuel + Apron + Permit)
+' ============================================================
+
+rectangle "Start\nRefueling" as T_S_FUEL <<safety>>
+usecase "Refueling\nin Progress" as REFUELING <<state>>
+rectangle "Finish\nRefueling" as T_E_FUEL <<t>>
+usecase "Refueling\nComplete" as FUEL_DONE <<done>>
+
+W_FUEL --> T_S_FUEL
+FUEL --> T_S_FUEL : "acquire\nfuel truck"
+APRON --> T_S_FUEL : "acquire\napron slot"
+PERMIT --> T_S_FUEL : "**acquire**\n**GSE permit**"
+T_S_FUEL --> REFUELING
+
+REFUELING --> T_E_FUEL
+T_E_FUEL --> FUEL_DONE
+T_E_FUEL --> FUEL : "release\nfuel truck"
+T_E_FUEL --> APRON : "release\napron slot"
+T_E_FUEL --> PERMIT : "**release**\n**GSE permit**"
+
+' ============================================================
+' BRANCH 2: CATERING (needs Catering + Apron + Permit)
+' ============================================================
+
+rectangle "Start\nCatering" as T_S_CAT <<t>>
+usecase "Catering\nin Progress" as CATERING <<state>>
+rectangle "Finish\nCatering" as T_E_CAT <<t>>
+usecase "Catering\nComplete" as CAT_DONE <<done>>
+
+W_CAT --> T_S_CAT
+CAT_R --> T_S_CAT : "acquire\ncatering truck"
+APRON --> T_S_CAT : "acquire\napron slot"
+PERMIT --> T_S_CAT : "**acquire**\n**GSE permit**"
+T_S_CAT --> CATERING
+
+CATERING --> T_E_CAT
+T_E_CAT --> CAT_DONE
+T_E_CAT --> CAT_R : "release\ncatering truck"
+T_E_CAT --> APRON : "release\napron slot"
+T_E_CAT --> PERMIT : "**release**\n**GSE permit**"
+
+' ============================================================
+' BRANCH 3: CLEANING (needs Cleaning only — inside cabin)
+' ============================================================
+
+rectangle "Start Cabin\nCleaning" as T_S_CLN <<t>>
+usecase "Cabin Cleaning\nin Progress" as CLEANING <<state>>
+rectangle "Finish Cabin\nCleaning" as T_E_CLN <<t>>
+usecase "Cabin Cleaning\nComplete" as CLN_DONE <<done>>
+
+W_CLN --> T_S_CLN
+CLN_R --> T_S_CLN : "acquire\ncleaning team"
+T_S_CLN --> CLEANING
+
+CLEANING --> T_E_CLN
+T_E_CLN --> CLN_DONE
+T_E_CLN --> CLN_R : "release\ncleaning team"
+
+' ============================================================
+' BRANCH 4: BAGGAGE (needs Baggage + Apron + Permit)
+' ============================================================
+
+rectangle "Start Baggage\nHandling" as T_S_BAG <<t>>
+usecase "Baggage\nHandling\nin Progress" as BAGGAGE <<state>>
+rectangle "Finish Baggage\nHandling" as T_E_BAG <<t>>
+usecase "Baggage\nHandling\nComplete" as BAG_DONE <<done>>
+
+W_BAG --> T_S_BAG
+BAG_R --> T_S_BAG : "acquire\nbaggage cart"
+APRON --> T_S_BAG : "acquire\napron slot"
+PERMIT --> T_S_BAG : "**acquire**\n**GSE permit**"
+T_S_BAG --> BAGGAGE
+
+BAGGAGE --> T_E_BAG
+T_E_BAG --> BAG_DONE
+T_E_BAG --> BAG_R : "release\nbaggage cart"
+T_E_BAG --> APRON : "release\napron slot"
+T_E_BAG --> PERMIT : "**release**\n**GSE permit**"
+
+' ============================================================
+' BRANCH 5: MAINTENANCE (no resource needed)
+' ============================================================
+
+rectangle "Start Transit\nMaintenance" as T_S_MNT <<t>>
+usecase "Maintenance\nInspection\nin Progress" as MAINT <<state>>
+rectangle "Finish Transit\nMaintenance" as T_E_MNT <<t>>
+usecase "Maintenance\nInspection\nComplete" as MNT_DONE <<done>>
+
+W_MNT --> T_S_MNT
+T_S_MNT --> MAINT
+MAINT --> T_E_MNT
+T_E_MNT --> MNT_DONE
+
+' ============================================================
+' JOIN: All 5 branches must complete
+' ============================================================
+
+rectangle "All Ground\nHandling Done\n(JOIN)" as T_JOIN <<join>>
+usecase "Ground Handling\nAll Complete" as GH_DONE <<done>>
+
+FUEL_DONE --> T_JOIN
+CAT_DONE --> T_JOIN
+CLN_DONE --> T_JOIN
+BAG_DONE --> T_JOIN
+MNT_DONE --> T_JOIN
+T_JOIN --> GH_DONE
+
+' ============================================================
+' PHASE 3: DEPARTURE
+' ============================================================
+
+rectangle "Calculate\nWeight & Balance" as T_WB <<t>>
+usecase "Loadsheet\nApproved by\nCaptain" as WB_OK <<state>>
+
+GH_DONE --> T_WB
+T_WB --> WB_OK
+
+rectangle "Passengers\nBoard Aircraft" as T_BOARD <<t>>
+usecase "All Passengers\nBoarded\nDoors Closed" as BOARDED <<state>>
+
+WB_OK --> T_BOARD
+T_BOARD --> BOARDED
+
+rectangle "Pushback\nfrom Gate" as T_PUSH <<safety>>
+usecase "Aircraft\nPushed Back\nEngine Started" as PUSHED <<state>>
+
+BOARDED --> T_PUSH
+T_PUSH --> PUSHED
+T_PUSH --> BAY : "release gate\n(A2 can dock now)"
+
+rectangle "Takeoff" as T_TAKEOFF <<t>>
+usecase "**Aircraft**\n**Departed**" as DEPARTED <<final>>
+
+PUSHED --> T_TAKEOFF
+RWY --> T_TAKEOFF : "acquire\nrunway"
+T_TAKEOFF --> DEPARTED
+T_TAKEOFF --> RWY : "release\nrunway"
+
+' ============================================================
+' NOTES: HOW GSE PERMIT PREVENTS DEADLOCK
+' ============================================================
+
+note top of PERMIT #E8F5E9
+  <size:14>**GSE Permit — Control Place (Deadlock Fix)**</size>
+
+  **tokens = 2** (เท่ากับ Apron Zone capacity)
+
+  **หลักการ:**
+  ทุก GSE ที่ต้องใช้ Apron Zone
+  (Fuel, Catering, Baggage)
+  ต้อง acquire GSE Permit ด้วย
+
+  ถ้า Permit หมด -> GSE ตัวถัดไปรอ
+  จน GSE ตัวก่อนเสร็จ แล้วคืน Permit
+
+  **ผลลัพธ์:** ไม่มีทางที่ GSE > 2 ตัว
+  จะเข้า Apron พร้อมกัน
+  -> **ไม่เกิด Circular Wait**
+  -> **ไม่เกิด Deadlock**
+end note
+
+note bottom of DEPARTED #E8F5E9
+  <size:14>**Execution Trace (Deadlock-Free)**</size>
+
+  **=== Aircraft 1 (A1) ===**
+  | Step | Event | Permit | Apron |
+  | 1 | A1: Start Refueling | 2->**1** | 2->**1** |
+  | 2 | A1: Start Catering | 1->**0** | 1->**0** |
+  | 3 | A1: Start Baggage -> **WAIT** | 0 (รอ) | 0 (รอ) |
+  |   | (Cleaning + Maint ทำได้เลย ไม่ใช้ Apron/Permit) | | |
+  | 4 | A1: Finish Refueling | 0->**1** | 0->**1** |
+  | 5 | A1: Start Baggage -> **OK!** | 1->**0** | 1->**0** |
+  | 6 | A1: Finish Catering | 0->**1** | 0->**1** |
+  | 7 | A1: Finish Baggage | 1->**2** | 1->**2** |
+  | 8 | A1: JOIN fires (5/5 done) | | |
+  | 9 | A1: W&B -> Board -> Pushback | | release Bay |
+  | 10 | A1: Takeoff -> **Departed** | | |
+
+  **=== Aircraft 2 (A2) ===**
+  | 11 | A2: Land -> Taxi -> Dock (Bay ว่างแล้ว) | | |
+  | 12 | A2: Debark -> FORK -> ทำ GH เหมือน A1 | | |
+  | ... | (ซ้ำเหมือน A1 โดยไม่มี deadlock) | | |
+  | 20 | A2: Takeoff -> **Departed** | | |
+
+  **=== Aircraft 3 (A3) ===**
+  | 21-30 | ซ้ำเหมือน A1, A2 | | |
+  | 30 | A3: Takeoff -> **Departed** | | |
+
+  ----
+  **Final Marking: P_Departed = 3 tokens**
+  **ทรัพยากรทั้งหมดคืนสู่ค่าเริ่มต้น**
+end note
+
+note right of T_FORK
+  **FORK (1 -> 5):**
+  แยก 5 branches
+  ทำพร้อมกัน
+
+  **Cleaning** + **Maintenance**
+  เริ่มได้เลยไม่ต้องรอ
+  เพราะไม่ใช้ Apron/Permit
+end note
+
+note right of T_JOIN
+  **JOIN (5 -> 1):**
+  ต้องครบ 5 branches:
+  Refuel Done
+  + Catering Done
+  + Cleaning Done
+  + Baggage Done
+  + Maintenance Done
+end note
+
+note left of T_S_FUEL #FFF3CD
+  **ต้อง acquire 3 อย่าง:**
+  1. Fuel Truck (1 token)
+  2. Apron Slot (จาก 2 tokens)
+  3. GSE Permit (จาก 2 tokens)
+end note
+
+note left of T_PUSH #FFEBEE
+  **Safety Constraint:**
+  Pushback ได้ก็ต่อเมื่อ
+  Refueling Complete แล้ว
+  (JOIN บังคับอยู่แล้ว)
+end note
+
+note right of CLEANING
+  **ไม่ใช้ Apron / Permit**
+  ทำงานในห้องโดยสาร
+  -> เริ่มได้เลยทันที
+end note
+
+note right of MAINT
+  **ไม่ใช้ Apron / Permit**
+  วิศวกรเดินตรวจรอบเครื่อง
+  -> เริ่มได้เลยทันที
+end note
+
+' ============================================================
+' INITIAL MARKING SUMMARY
+' ============================================================
+
+note top of WAIT
+  <size:14>**INITIAL MARKING (M0)**</size>
+
+  |= Place |= Tokens |
+  | Aircraft Waiting to Land | **3** |
+  | Runway Available | **1** |
+  | Gate/Bay Available | **1** |
+  | Fuel Truck Available | **1** |
+  | Catering Truck Available | **1** |
+  | Cleaning Team Available | **1** |
+  | Baggage Cart Available | **1** |
+  | Apron Zone Slots | **2** |
+  | **GSE Permit (Control)** | **2** |
+  | All other places | **0** |
+
+  ----
+  **Petri Net Summary:**
+  Places = 22 per aircraft + 9 resources
+  Transitions = 20 per aircraft
+  3 aircraft share same net structure
+  with common resource places
+end note
+
+@enduml

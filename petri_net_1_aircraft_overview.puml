@@ -1,0 +1,311 @@
+@startuml petri_net_1_aircraft
+title **Petri Net Model: Aircraft Turnaround Process**\n**Case 1 — Single Aircraft (No Resource Contention)**
+
+skinparam backgroundColor white
+skinparam defaultFontSize 11
+skinparam ranksep 50
+skinparam nodesep 25
+
+' ============================================================
+' STYLES
+' ============================================================
+skinparam usecase {
+    BackgroundColor<<state>> #FFFFFF
+    BorderColor<<state>> #444444
+
+    BackgroundColor<<resource>> #FFF3CD
+    BorderColor<<resource>> #CC8800
+
+    BackgroundColor<<initial>> #D4EDDA
+    BorderColor<<initial>> #228B22
+
+    BackgroundColor<<done>> #D6E9FF
+    BorderColor<<done>> #3366CC
+
+    BackgroundColor<<final>> #FFD700
+    BorderColor<<final>> #B8860B
+}
+
+skinparam rectangle {
+    BackgroundColor<<t>> #444444
+    FontColor<<t>> white
+    BorderColor<<t>> #222222
+
+    BackgroundColor<<fork>> #1A5276
+    FontColor<<fork>> white
+    BorderColor<<fork>> #0E3A5C
+
+    BackgroundColor<<join>> #1A5276
+    FontColor<<join>> white
+    BorderColor<<join>> #0E3A5C
+
+    BackgroundColor<<safety>> #922B21
+    FontColor<<safety>> white
+    BorderColor<<safety>> #6E2017
+}
+
+' ============================================================
+' INITIAL MARKING & RESOURCES
+' ============================================================
+
+usecase "**Aircraft Waiting**\n**to Land**\n(1 token)" as WAIT <<initial>>
+
+usecase "**Runway**\n**Available**\n(1 token)" as RWY <<initial>>
+
+usecase "**Gate/Bay**\n**Available**\n(1 token)" as BAY <<initial>>
+
+usecase "**Fuel Truck**\n**Available**\n(1 token)" as FUEL <<initial>>
+
+usecase "**Catering Truck**\n**Available**\n(1 token)" as CAT <<initial>>
+
+usecase "**Cleaning Team**\n**Available**\n(1 token)" as CLN <<initial>>
+
+usecase "**Baggage Cart**\n**Available**\n(1 token)" as BAG <<initial>>
+
+usecase "**Apron Zone**\n**Slots Available**\n(2 tokens)" as APRON <<initial>>
+
+' ============================================================
+' PHASE 1: ARRIVAL & DOCKING (Sequential)
+' ============================================================
+
+rectangle "Land on\nRunway" as T_LAND <<t>>
+
+usecase "Aircraft\non Runway" as ON_RWY <<state>>
+
+rectangle "Taxi to\nGate" as T_TAXI <<t>>
+
+usecase "Aircraft\nTaxiing to Gate" as TAXIING <<state>>
+
+rectangle "Dock at Gate\n(Chocks + GPU)" as T_DOCK <<t>>
+
+usecase "Aircraft\nDocked at Gate" as DOCKED <<state>>
+
+rectangle "Passengers\nDisembark" as T_DEBARK <<t>>
+
+usecase "All Passengers\nOff Aircraft" as PAX_OFF <<state>>
+
+' --- Phase 1 Arcs ---
+WAIT --> T_LAND
+RWY --> T_LAND : "acquire\nrunway"
+T_LAND --> ON_RWY
+
+ON_RWY --> T_TAXI
+T_TAXI --> TAXIING
+T_TAXI --> RWY : "release\nrunway"
+
+TAXIING --> T_DOCK
+BAY --> T_DOCK : "acquire\ngate"
+T_DOCK --> DOCKED
+
+DOCKED --> T_DEBARK
+T_DEBARK --> PAX_OFF
+
+' ============================================================
+' FORK: Start 5 parallel ground handling processes
+' ============================================================
+
+rectangle "Start Ground\nHandling\n(FORK)" as T_FORK <<fork>>
+
+PAX_OFF --> T_FORK
+
+usecase "Waiting for\nRefueling" as W_FUEL <<state>>
+usecase "Waiting for\nCatering" as W_CAT <<state>>
+usecase "Waiting for\nCleaning" as W_CLN <<state>>
+usecase "Waiting for\nBaggage\nHandling" as W_BAG <<state>>
+usecase "Waiting for\nMaintenance\nInspection" as W_MNT <<state>>
+
+T_FORK --> W_FUEL
+T_FORK --> W_CAT
+T_FORK --> W_CLN
+T_FORK --> W_BAG
+T_FORK --> W_MNT
+
+' ============================================================
+' PHASE 2: GROUND HANDLING (5 Parallel Branches)
+' ============================================================
+
+' --- Branch 1: REFUELING ---
+rectangle "Start\nRefueling" as T_S_FUEL <<safety>>
+usecase "Refueling\nin Progress" as REFUELING <<state>>
+rectangle "Finish\nRefueling" as T_E_FUEL <<t>>
+usecase "Refueling\nComplete" as FUEL_DONE <<done>>
+
+W_FUEL --> T_S_FUEL
+FUEL --> T_S_FUEL : "acquire\nfuel truck"
+APRON --> T_S_FUEL : "acquire\napron slot"
+T_S_FUEL --> REFUELING
+
+REFUELING --> T_E_FUEL
+T_E_FUEL --> FUEL_DONE
+T_E_FUEL --> FUEL : "release\nfuel truck"
+T_E_FUEL --> APRON : "release\napron slot"
+
+' --- Branch 2: CATERING ---
+rectangle "Start\nCatering" as T_S_CAT <<t>>
+usecase "Catering\nin Progress" as CATERING <<state>>
+rectangle "Finish\nCatering" as T_E_CAT <<t>>
+usecase "Catering\nComplete" as CAT_DONE <<done>>
+
+W_CAT --> T_S_CAT
+CAT --> T_S_CAT : "acquire\ncatering truck"
+APRON --> T_S_CAT : "acquire\napron slot"
+T_S_CAT --> CATERING
+
+CATERING --> T_E_CAT
+T_E_CAT --> CAT_DONE
+T_E_CAT --> CAT : "release\ncatering truck"
+T_E_CAT --> APRON : "release\napron slot"
+
+' --- Branch 3: CLEANING ---
+rectangle "Start Cabin\nCleaning" as T_S_CLN <<t>>
+usecase "Cabin Cleaning\nin Progress" as CLEANING <<state>>
+rectangle "Finish Cabin\nCleaning" as T_E_CLN <<t>>
+usecase "Cabin Cleaning\nComplete" as CLN_DONE <<done>>
+
+W_CLN --> T_S_CLN
+CLN --> T_S_CLN : "acquire\ncleaning team"
+T_S_CLN --> CLEANING
+
+CLEANING --> T_E_CLN
+T_E_CLN --> CLN_DONE
+T_E_CLN --> CLN : "release\ncleaning team"
+
+' --- Branch 4: BAGGAGE ---
+rectangle "Start Baggage\nHandling" as T_S_BAG <<t>>
+usecase "Baggage Handling\nin Progress" as BAGGAGE <<state>>
+rectangle "Finish Baggage\nHandling" as T_E_BAG <<t>>
+usecase "Baggage Handling\nComplete" as BAG_DONE <<done>>
+
+W_BAG --> T_S_BAG
+BAG --> T_S_BAG : "acquire\nbaggage cart"
+APRON --> T_S_BAG : "acquire\napron slot"
+T_S_BAG --> BAGGAGE
+
+BAGGAGE --> T_E_BAG
+T_E_BAG --> BAG_DONE
+T_E_BAG --> BAG : "release\nbaggage cart"
+T_E_BAG --> APRON : "release\napron slot"
+
+' --- Branch 5: MAINTENANCE ---
+rectangle "Start Transit\nMaintenance" as T_S_MNT <<t>>
+usecase "Maintenance\nInspection\nin Progress" as MAINT <<state>>
+rectangle "Finish Transit\nMaintenance" as T_E_MNT <<t>>
+usecase "Maintenance\nInspection\nComplete" as MNT_DONE <<done>>
+
+W_MNT --> T_S_MNT
+T_S_MNT --> MAINT
+
+MAINT --> T_E_MNT
+T_E_MNT --> MNT_DONE
+
+' ============================================================
+' JOIN: All 5 branches must complete
+' ============================================================
+
+rectangle "All Ground\nHandling Done\n(JOIN)" as T_JOIN <<join>>
+
+FUEL_DONE --> T_JOIN
+CAT_DONE --> T_JOIN
+CLN_DONE --> T_JOIN
+BAG_DONE --> T_JOIN
+MNT_DONE --> T_JOIN
+
+usecase "Ground Handling\nAll Complete" as GH_DONE <<done>>
+
+T_JOIN --> GH_DONE
+
+' ============================================================
+' PHASE 3: DEPARTURE (Sequential)
+' ============================================================
+
+rectangle "Calculate\nWeight & Balance" as T_WB <<t>>
+usecase "Loadsheet\nApproved by\nCaptain" as WB_OK <<state>>
+
+GH_DONE --> T_WB
+T_WB --> WB_OK
+
+rectangle "Passengers\nBoard Aircraft" as T_BOARD <<t>>
+usecase "All Passengers\nBoarded\nDoors Closed" as BOARDED <<state>>
+
+WB_OK --> T_BOARD
+T_BOARD --> BOARDED
+
+rectangle "Pushback\nfrom Gate" as T_PUSH <<safety>>
+usecase "Aircraft\nPushed Back\nEngine Started" as PUSHED <<state>>
+
+BOARDED --> T_PUSH
+T_PUSH --> PUSHED
+T_PUSH --> BAY : "release\ngate"
+
+rectangle "Takeoff" as T_TAKEOFF <<t>>
+
+PUSHED --> T_TAKEOFF
+RWY --> T_TAKEOFF : "acquire\nrunway"
+
+usecase "**Aircraft**\n**Departed**" as DEPARTED <<final>>
+
+T_TAKEOFF --> DEPARTED
+T_TAKEOFF --> RWY : "release\nrunway"
+
+' ============================================================
+' NOTES
+' ============================================================
+
+note top of WAIT
+  **=== INITIAL MARKING (M0) ===**
+  Aircraft Waiting to Land = **1**
+  Runway Available = **1**
+  Gate/Bay Available = **1**
+  Fuel Truck Available = **1**
+  Catering Truck Available = **1**
+  Cleaning Team Available = **1**
+  Baggage Cart Available = **1**
+  Apron Zone Slots = **2**
+  ----
+  Total Places = **22**
+  Total Transitions = **20**
+end note
+
+note right of T_FORK
+  **FORK (1 -> 5):**
+  1 token เข้า
+  5 tokens ออก
+  ทุก branch เริ่ม
+  พร้อมกัน
+end note
+
+note right of T_JOIN
+  **JOIN (5 -> 1):**
+  ต้องรอ 5 tokens
+  จากทุก branch
+  ครบก่อนจึง fire
+end note
+
+note left of T_S_FUEL #FFEEEE
+  **Safety-Critical:**
+  Refueling ต้องเสร็จ
+  ก่อน Pushback ได้
+end note
+
+note bottom of DEPARTED
+  **=== FINAL MARKING (Mf) ===**
+  Aircraft Departed = **1**
+  ทรัพยากรทั้งหมดคืนสู่สถานะเดิม
+  ----
+  **กรณี 1 ลำ: ไม่มี Deadlock**
+  เพราะไม่มีการแย่ง resource
+end note
+
+note right of CLEANING
+  **Cleaning ไม่ใช้ Apron**
+  เพราะทำงานภายใน
+  ห้องโดยสาร
+end note
+
+note right of MAINT
+  **Maintenance ไม่ใช้ GSE**
+  วิศวกรเดินตรวจรอบ
+  เครื่องด้วยตัวเอง
+end note
+
+@enduml

@@ -1,0 +1,339 @@
+@startuml petri_net_3_aircraft_deadlock
+title **Petri Net Model: Aircraft Turnaround Process**\n**Case 2 — Three Aircraft with Deadlock Scenario**\n\nFocus: Ground Handling Phase with Shared Resources
+
+skinparam backgroundColor white
+skinparam defaultFontSize 10
+skinparam ranksep 35
+skinparam nodesep 20
+
+' ============================================================
+' STYLES
+' ============================================================
+skinparam usecase {
+    BackgroundColor<<state>> #FFFFFF
+    BorderColor<<state>> #444444
+
+    BackgroundColor<<resource>> #FFF3CD
+    BorderColor<<resource>> #CC8800
+
+    BackgroundColor<<initial>> #D4EDDA
+    BorderColor<<initial>> #228B22
+
+    BackgroundColor<<done>> #D6E9FF
+    BorderColor<<done>> #3366CC
+
+    BackgroundColor<<final>> #FFD700
+    BorderColor<<final>> #B8860B
+
+    BackgroundColor<<deadlock>> #F8D7DA
+    BorderColor<<deadlock>> #CC0000
+
+    BackgroundColor<<stuck>> #FFB3B3
+    BorderColor<<stuck>> #CC0000
+}
+
+skinparam rectangle {
+    BackgroundColor<<t>> #444444
+    FontColor<<t>> white
+    BorderColor<<t>> #222222
+
+    BackgroundColor<<fork>> #1A5276
+    FontColor<<fork>> white
+
+    BackgroundColor<<join>> #1A5276
+    FontColor<<join>> white
+
+    BackgroundColor<<blocked>> #CC0000
+    FontColor<<blocked>> white
+    BorderColor<<blocked>> #880000
+
+    BackgroundColor<<safety>> #922B21
+    FontColor<<safety>> white
+}
+
+' ============================================================
+' SHARED RESOURCES (Center of diagram)
+' ============================================================
+
+usecase "**Runway**\n**Available**\n(1 token)" as RWY <<initial>>
+
+usecase "**Gate/Bay**\n**Available**\n(1 token)" as BAY <<initial>>
+
+usecase "**Fuel Truck**\n**Available**\n(1 token)" as FUEL <<resource>>
+
+usecase "**Catering Truck**\n**Available**\n(1 token)" as CAT_R <<resource>>
+
+usecase "**Cleaning Team**\n**Available**\n(1 token)" as CLN_R <<resource>>
+
+usecase "**Baggage Cart**\n**Available**\n(1 token)" as BAG_R <<resource>>
+
+usecase "**Apron Zone**\n**Slots Available**\n**(2 tokens)**" as APRON <<deadlock>>
+
+' ============================================================
+' ARRIVAL FLOW (Shared Runway & Bay)
+' ============================================================
+
+usecase "**3 Aircraft**\n**Waiting to Land**\n(3 tokens)" as WAIT <<initial>>
+
+rectangle "Aircraft\nLands" as T_LAND <<t>>
+usecase "Aircraft\non Runway" as ON_RWY <<state>>
+rectangle "Taxi to\nGate" as T_TAXI <<t>>
+usecase "Aircraft\nTaxiing" as TAXIING <<state>>
+rectangle "Dock at\nGate" as T_DOCK <<t>>
+usecase "Aircraft\nDocked" as DOCKED <<state>>
+rectangle "Passengers\nDisembark" as T_DEBARK <<t>>
+
+WAIT --> T_LAND
+RWY --> T_LAND : "acquire"
+T_LAND --> ON_RWY
+ON_RWY --> T_TAXI
+T_TAXI --> TAXIING
+T_TAXI --> RWY : "release"
+TAXIING --> T_DOCK
+BAY --> T_DOCK : "acquire"
+T_DOCK --> DOCKED
+DOCKED --> T_DEBARK
+
+note right of T_LAND
+  **Runway = 1 token**
+  เครื่องลงได้ทีละลำ
+  A1 ลงก่อน -> A2 -> A3
+end note
+
+note right of T_DOCK
+  **Bay = 1 token**
+  จอดได้ทีละลำ
+  ลำก่อนต้อง Pushback
+  ออกก่อน ลำถัดไปจึงจอดได้
+end note
+
+' ============================================================
+' AIRCRAFT 1: GROUND HANDLING (Currently at Gate)
+' ============================================================
+
+package "=== Aircraft 1 (A1) — Currently at Gate ===" as PKG_A1 #F8F9FA {
+
+    usecase "A1: All Passengers\nOff Aircraft" as A1_OFF <<state>>
+
+    rectangle "A1: Start\nGround Handling\n(FORK)" as A1_FORK <<fork>>
+
+    T_DEBARK --> A1_OFF
+    A1_OFF --> A1_FORK
+
+    ' -- A1 Refueling --
+    usecase "A1: Waiting\nfor Refueling" as A1_W_FUEL <<state>>
+    rectangle "A1: Start\nRefueling" as A1_S_FUEL <<safety>>
+    usecase "A1: Refueling\nin Progress" as A1_REFUELING <<stuck>>
+    rectangle "A1: Finish\nRefueling" as A1_E_FUEL <<t>>
+    usecase "A1: Refueling\nComplete" as A1_FUEL_DONE <<done>>
+
+    A1_FORK --> A1_W_FUEL
+    A1_W_FUEL --> A1_S_FUEL
+    FUEL --> A1_S_FUEL : "acquire\nfuel truck"
+    APRON --> A1_S_FUEL : "acquire\napron slot"
+    A1_S_FUEL --> A1_REFUELING
+    A1_REFUELING --> A1_E_FUEL
+    A1_E_FUEL --> A1_FUEL_DONE
+    A1_E_FUEL --> FUEL : "release\nfuel truck"
+    A1_E_FUEL --> APRON : "release\napron slot"
+
+    ' -- A1 Catering --
+    usecase "A1: Waiting\nfor Catering" as A1_W_CAT <<state>>
+    rectangle "A1: Start\nCatering" as A1_S_CAT <<blocked>>
+    usecase "A1: Catering\nin Progress" as A1_CATERING <<state>>
+    rectangle "A1: Finish\nCatering" as A1_E_CAT <<t>>
+    usecase "A1: Catering\nComplete" as A1_CAT_DONE <<done>>
+
+    A1_FORK --> A1_W_CAT
+    A1_W_CAT --> A1_S_CAT
+    CAT_R --> A1_S_CAT : "acquire\ncatering truck"
+    APRON --> A1_S_CAT : "acquire\napron slot"
+    A1_S_CAT --> A1_CATERING
+    A1_CATERING --> A1_E_CAT
+    A1_E_CAT --> A1_CAT_DONE
+    A1_E_CAT --> CAT_R : "release\ncatering truck"
+    A1_E_CAT --> APRON : "release\napron slot"
+
+    ' -- A1 Cleaning --
+    usecase "A1: Waiting\nfor Cleaning" as A1_W_CLN <<state>>
+    rectangle "A1: Start Cabin\nCleaning" as A1_S_CLN <<t>>
+    usecase "A1: Cabin Cleaning\nin Progress" as A1_CLEANING <<state>>
+    rectangle "A1: Finish Cabin\nCleaning" as A1_E_CLN <<t>>
+    usecase "A1: Cabin Cleaning\nComplete" as A1_CLN_DONE <<done>>
+
+    A1_FORK --> A1_W_CLN
+    A1_W_CLN --> A1_S_CLN
+    CLN_R --> A1_S_CLN : "acquire\ncleaning team"
+    A1_S_CLN --> A1_CLEANING
+    A1_CLEANING --> A1_E_CLN
+    A1_E_CLN --> A1_CLN_DONE
+    A1_E_CLN --> CLN_R : "release\ncleaning team"
+
+    ' -- A1 Baggage --
+    usecase "A1: Waiting for\nBaggage Handling" as A1_W_BAG <<state>>
+    rectangle "A1: Start\nBaggage Handling" as A1_S_BAG <<blocked>>
+    usecase "A1: Baggage\nHandling\nin Progress" as A1_BAGGAGE <<state>>
+    rectangle "A1: Finish\nBaggage Handling" as A1_E_BAG <<t>>
+    usecase "A1: Baggage\nHandling Complete" as A1_BAG_DONE <<done>>
+
+    A1_FORK --> A1_W_BAG
+    A1_W_BAG --> A1_S_BAG
+    BAG_R --> A1_S_BAG : "acquire\nbaggage cart"
+    APRON --> A1_S_BAG : "acquire\napron slot"
+    A1_S_BAG --> A1_BAGGAGE
+    A1_BAGGAGE --> A1_E_BAG
+    A1_E_BAG --> A1_BAG_DONE
+    A1_E_BAG --> BAG_R : "release\nbaggage cart"
+    A1_E_BAG --> APRON : "release\napron slot"
+
+    ' -- A1 Maintenance --
+    usecase "A1: Waiting for\nMaintenance" as A1_W_MNT <<state>>
+    rectangle "A1: Start Transit\nMaintenance" as A1_S_MNT <<t>>
+    usecase "A1: Maintenance\nInspection\nin Progress" as A1_MAINT <<state>>
+    rectangle "A1: Finish Transit\nMaintenance" as A1_E_MNT <<t>>
+    usecase "A1: Maintenance\nInspection\nComplete" as A1_MNT_DONE <<done>>
+
+    A1_FORK --> A1_W_MNT
+    A1_W_MNT --> A1_S_MNT
+    A1_S_MNT --> A1_MAINT
+    A1_MAINT --> A1_E_MNT
+    A1_E_MNT --> A1_MNT_DONE
+
+    ' -- A1 JOIN --
+    rectangle "A1: All Ground\nHandling Done\n(JOIN)" as A1_JOIN <<join>>
+    usecase "A1: Ground\nHandling\nAll Complete" as A1_GH_DONE <<done>>
+
+    A1_FUEL_DONE --> A1_JOIN
+    A1_CAT_DONE --> A1_JOIN
+    A1_CLN_DONE --> A1_JOIN
+    A1_BAG_DONE --> A1_JOIN
+    A1_MNT_DONE --> A1_JOIN
+    A1_JOIN --> A1_GH_DONE
+
+    ' -- A1 Departure --
+    rectangle "A1: Weight\n& Balance" as A1_WB <<t>>
+    usecase "A1: Loadsheet\nApproved" as A1_WB_OK <<state>>
+    rectangle "A1: Passengers\nBoard" as A1_BOARD <<t>>
+    usecase "A1: Passengers\nBoarded\nDoors Closed" as A1_BOARDED <<state>>
+    rectangle "A1: Pushback\nfrom Gate" as A1_PUSH <<safety>>
+    usecase "A1: Pushed Back\nEngine Started" as A1_PUSHED <<state>>
+    rectangle "A1: Takeoff" as A1_TAKEOFF <<t>>
+    usecase "**A1: Departed**" as A1_DEPARTED <<final>>
+
+    A1_GH_DONE --> A1_WB
+    A1_WB --> A1_WB_OK
+    A1_WB_OK --> A1_BOARD
+    A1_BOARD --> A1_BOARDED
+    A1_BOARDED --> A1_PUSH
+    A1_PUSH --> A1_PUSHED
+    A1_PUSH --> BAY : "release\ngate"
+    A1_PUSHED --> A1_TAKEOFF
+    RWY --> A1_TAKEOFF : "acquire"
+    A1_TAKEOFF --> A1_DEPARTED
+    A1_TAKEOFF --> RWY : "release"
+}
+
+
+' ============================================================
+' AIRCRAFT 2: WAITING (Gate not yet available)
+' ============================================================
+
+package "=== Aircraft 2 (A2) — Waiting for Gate ===" as PKG_A2 #FFF8E1 {
+
+    usecase "A2: Waiting\nto Land" as A2_WAIT <<state>>
+
+    note bottom of A2_WAIT
+      A2 ต้องรอ:
+      1. Runway ว่าง -> Land
+      2. Bay ว่าง -> Dock
+      (A1 ต้อง Pushback ก่อน)
+    end note
+}
+
+' ============================================================
+' AIRCRAFT 3: WAITING
+' ============================================================
+
+package "=== Aircraft 3 (A3) — Waiting for Gate ===" as PKG_A3 #F3E5F5 {
+
+    usecase "A3: Waiting\nto Land" as A3_WAIT <<state>>
+
+    note bottom of A3_WAIT
+      A3 ต้องรอทั้ง
+      A1 และ A2 ทำ turnaround
+      เสร็จก่อน
+    end note
+}
+
+' ============================================================
+' DEADLOCK SCENARIO EXPLANATION
+' ============================================================
+
+note bottom of APRON #FFE0E0
+  <size:14>**DEADLOCK SCENARIO**</size>
+
+  **Apron Zone มีแค่ 2 slots (2 tokens)**
+  **GSE ที่ต้องใช้ Apron มี 3 ประเภท:**
+  Fuel Truck, Catering Truck, Baggage Cart
+
+  ----
+  **Deadlock Trace (ลำดับเหตุการณ์ที่ทำให้ติดตาย):**
+
+  | Step | Event | Apron tokens |
+  | 1 | A1: Start Refueling (acquire Fuel + Apron) | 2 -> **1** |
+  | 2 | A1: Start Catering ต้องการ Apron... | |
+  |   | แต่ Catering Truck ว่าง + Apron ยังเหลือ 1 | 1 -> **0** |
+  | 3 | A1: Start Baggage ต้องการ Apron... | |
+  |   | **BLOCKED!** Apron = 0 | **0 (หมด!)** |
+  | 4 | A1 ทำ Catering เสร็จไม่ได้ เพราะ token ยังค้างใน progress | |
+  |   | A1 ทำ Refueling เสร็จไม่ได้ เพราะ token ยังค้างใน progress | |
+  | 5 | **JOIN รอ 5 branches ครบ -> ไม่มีทางครบ!** | |
+  | 6 | A1 ไม่ Pushback -> Bay ไม่ว่าง -> A2, A3 จอดไม่ได้ | |
+  | 7 | **==> ระบบทั้งหมดหยุดชะงัก (DEADLOCK)** | |
+
+  ----
+  <size:12>**หมายเหตุ:** กรณี 1 ลำไม่ deadlock เพราะ</size>
+  <size:12>Refuel ใช้ Apron 1 + Catering ใช้ Apron 1 = 2</size>
+  <size:12>พอดีกับ capacity แต่ถ้า 3 GSE ต้องใช้พร้อมกัน -> ไม่พอ</size>
+
+  ----
+  <size:12>**สาเหตุ:** Circular Wait</size>
+  <size:12>JOIN รอ Baggage -> Baggage รอ Apron</size>
+  <size:12>-> Apron ถูกถือโดย Refueling & Catering</size>
+  <size:12>-> Refueling & Catering ยังทำไม่เสร็จ</size>
+  <size:12>-> แต่ระบบไม่สามารถ progress ต่อได้</size>
+end note
+
+note right of A1_S_CAT #FFE0E0
+  **BLOCKED!**
+  Apron = 0
+  (ถูก Refueling
+  ถือไว้แล้ว)
+
+  กรณี worst case:
+  ถ้า Refueling ยังไม่เสร็จ
+  และ Catering ก็เข้าไป
+  acquire Apron slot ที่ 2
+  -> Baggage ไม่มี slot เหลือ
+end note
+
+note right of A1_S_BAG #FFE0E0
+  **BLOCKED!**
+  Apron = 0
+  Baggage Cart ว่างอยู่
+  แต่ไม่มี Apron slot
+  ให้จอดทำงาน
+end note
+
+note right of A1_JOIN #FFE0E0
+  **JOIN ไม่สามารถ fire**
+  เพราะรอ Baggage Done
+  แต่ Baggage ยังไม่เริ่ม
+  ----
+  ถ้า JOIN ไม่ fire
+  -> ไม่ถึง Pushback
+  -> Bay ไม่ว่าง
+  -> A2, A3 ค้างทั้งระบบ
+end note
+
+@enduml
