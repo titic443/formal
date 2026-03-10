@@ -1,0 +1,158 @@
+-- =============================================================
+-- TINA LTL Properties: Aircraft Turnaround Petri Net
+-- File: aircraft_ltl_properties.ltl
+-- Model: aircraft_turnaround.ndr
+-- Paper: "Formal Verification of Aircraft Turnaround Process
+--         Using Petri Net for Deadlock Detection and Liveness Analysis"
+-- =============================================================
+-- HOW TO USE IN TINA:
+--   1. Open TINA (selt tool) with: selt aircraft_turnaround.ndr
+--   2. Load this file:             selt -ltl aircraft_ltl_properties.ltl aircraft_turnaround.ndr
+--   3. Or check one property:      selt -f "G(not(P_A1_OnRunway * P_A2_OnRunway))" aircraft_turnaround.ndr
+-- =============================================================
+
+-- =============================================================
+-- SECTION A: SAFETY PROPERTIES
+-- =============================================================
+
+-- S1: Runway Mutual Exclusion
+-- No two aircraft shall use the runway simultaneously
+-- (สถานะ OnRunway = กำลังใช้ Runway)
+
+-- S1a: A1 and A2 cannot be on runway at same time
+G(not(P_A1_OnRunway >= 1 and P_A2_OnRunway >= 1))
+
+-- S1b: A1 and A3 cannot be on runway at same time
+G(not(P_A1_OnRunway >= 1 and P_A3_OnRunway >= 1))
+
+-- S1c: A2 and A3 cannot be on runway at same time
+G(not(P_A2_OnRunway >= 1 and P_A3_OnRunway >= 1))
+
+-- Alternative using resource place (P_Runway is mutex: max 1 token)
+-- P_Runway should never drop below 0 (guaranteed by structure)
+
+
+-- S2: Gate (Bay) Mutual Exclusion
+-- No two aircraft shall occupy the gate simultaneously
+-- (ตรวจสอบว่า P_Bay ไม่มีค่าต่ำกว่า 0 และ ไม่มีสองลำใน Docked พร้อมกัน)
+
+-- S2a
+G(not(P_A1_Docked >= 1 and P_A2_Docked >= 1))
+
+-- S2b
+G(not(P_A1_Docked >= 1 and P_A3_Docked >= 1))
+
+-- S2c
+G(not(P_A2_Docked >= 1 and P_A3_Docked >= 1))
+
+
+-- S3: No Pushback During Refueling
+-- An aircraft must not begin pushback while refueling is in progress
+-- (P_Ax_Departing = หลัง Pushback, P_Ax_Fueling = กำลังเติมน้ำมัน)
+
+G(not(P_A1_Departing >= 1 and P_A1_Fueling >= 1))
+G(not(P_A2_Departing >= 1 and P_A2_Fueling >= 1))
+G(not(P_A3_Departing >= 1 and P_A3_Fueling >= 1))
+
+
+-- S4: Boarding Precondition — all GH must complete before boarding
+-- Boarding only if FuelDone AND CatDone (GHDone captures this join)
+
+G(not(P_A1_Boarding >= 1 and P_A1_Fueling >= 1))
+G(not(P_A1_Boarding >= 1 and P_A1_Catering >= 1))
+G(not(P_A2_Boarding >= 1 and P_A2_Fueling >= 1))
+G(not(P_A2_Boarding >= 1 and P_A2_Catering >= 1))
+G(not(P_A3_Boarding >= 1 and P_A3_Fueling >= 1))
+G(not(P_A3_Boarding >= 1 and P_A3_Catering >= 1))
+
+
+-- S5: Apron Zone Capacity — never exceed 2 vehicles simultaneously
+-- P_Apron starts at 2; never goes below 0 (bounded by structure)
+-- Verify using: P_Apron is always >= 0 (bounded net check via nd -stats)
+G(P_Apron >= 0)
+
+
+-- S6: No Boarding During Refueling (Fire Safety)
+-- Critical: passengers must not board while fuel operations ongoing
+
+G(not(P_A1_Boarding >= 1 and P_A1_Fueling >= 1))
+G(not(P_A2_Boarding >= 1 and P_A2_Fueling >= 1))
+G(not(P_A3_Boarding >= 1 and P_A3_Fueling >= 1))
+
+
+-- =============================================================
+-- SECTION B: LIVENESS PROPERTIES
+-- =============================================================
+
+-- L1: Aircraft Completion — every aircraft eventually takes off
+-- If aircraft is Ready (initial), it will eventually reach Done
+
+G(P_A1_Ready >= 1 => F(P_A1_Done >= 1))
+G(P_A2_Ready >= 1 => F(P_A2_Done >= 1))
+G(P_A3_Ready >= 1 => F(P_A3_Done >= 1))
+
+
+-- L2: Ground Handling Completion — every GH process completes
+-- If Fueling starts, FuelDone will eventually have a token
+
+G(P_A1_Fueling >= 1 => F(P_A1_FuelDone >= 1))
+G(P_A1_Catering >= 1 => F(P_A1_CatDone >= 1))
+G(P_A2_Fueling >= 1 => F(P_A2_FuelDone >= 1))
+G(P_A2_Catering >= 1 => F(P_A2_CatDone >= 1))
+G(P_A3_Fueling >= 1 => F(P_A3_FuelDone >= 1))
+G(P_A3_Catering >= 1 => F(P_A3_CatDone >= 1))
+
+
+-- L3: No Starvation — waiting aircraft will eventually get resources
+-- If waiting for fuel, will eventually start fueling
+
+G(P_A1_ReadyFuel >= 1 => F(P_A1_Fueling >= 1))
+G(P_A1_ReadyCat >= 1  => F(P_A1_Catering >= 1))
+G(P_A2_ReadyFuel >= 1 => F(P_A2_Fueling >= 1))
+G(P_A2_ReadyCat >= 1  => F(P_A2_Catering >= 1))
+G(P_A3_ReadyFuel >= 1 => F(P_A3_Fueling >= 1))
+G(P_A3_ReadyCat >= 1  => F(P_A3_Catering >= 1))
+
+
+-- =============================================================
+-- SECTION C: SELT COMMAND QUICK REFERENCE
+-- =============================================================
+--
+-- Check deadlock (dead markings):
+--   nd -s aircraft_turnaround.ndr | grep "dead markings"
+--
+-- Full state space:
+--   selt -s aircraft_turnaround.ndr
+--
+-- Check single LTL formula:
+--   selt -f "G(not(P_A1_OnRunway >= 1 and P_A2_OnRunway >= 1))" aircraft_turnaround.ndr
+--
+-- Check all in this file:
+--   selt -ltl aircraft_ltl_properties.ltl aircraft_turnaround.ndr
+--
+-- Export reachability graph:
+--   nd -S aircraft_turnaround.ndr > states.aut
+--
+-- =============================================================
+-- PLACE NAMES (for reference — exact names from .ndr file):
+-- =============================================================
+--
+-- SHARED RESOURCES:
+--   P_Runway (1), P_Bay (1), P_FuelTruck (1),
+--   P_CateringTruck (1), P_Apron (2), P_GSEPermit (2)
+--
+-- AIRCRAFT A1 (repeat with A2, A3):
+--   P_A1_Ready(1), P_A1_OnRunway(0), P_A1_Docked(0),
+--   P_A1_ReadyFuel(0), P_A1_ReadyCat(0),
+--   P_A1_Fueling(0), P_A1_Catering(0),
+--   P_A1_FuelDone(0), P_A1_CatDone(0),
+--   P_A1_GHDone(0), P_A1_Boarding(0),
+--   P_A1_Departing(0), P_A1_Done(0)
+--
+-- TRANSITIONS A1 (repeat with A2, A3):
+--   T_A1_Land, T_A1_Dock, T_A1_Fork,
+--   T_A1_StartFuel, T_A1_EndFuel,
+--   T_A1_StartCat, T_A1_EndCat,
+--   T_A1_Join, T_A1_Board,
+--   T_A1_Pushback, T_A1_Takeoff
+-- =============================================================
