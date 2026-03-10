@@ -1,0 +1,43 @@
+  1. Aviation domain — concurrent ground handling (ยังขาด)
+  2. LTL verification — ยังไม่มี paper เฉพาะทาง LTL safety/liveness
+
+  LTL model checking safety liveness concurrent systems
+
+Using simulation to estimate critical paths and survival functions in aircraft turnaround processes
+////
+A. S. Antonio, A. A. Juan, L. Calvet, P. Fonseca i Casas and D. Guimarans, "Using simulation to estimate critical paths and survival functions in aircraft turnaround processes," 2017 Winter Simulation Conference (WSC), Las Vegas, NV, USA, 2017, pp. 3394-3403, doi: 10.1109/WSC.2017.8248055.
+keywords: {Aircraft;Delays;Atmospheric modeling;Airports;Loading;Probability distribution},
+
+
+Deadlock Avoidance Petri Net Controller for Manufacturing Systems with Multiple Resource Service
+////
+Keli Xing, Xiajie Jin and Yu Feng, "Deadlock Avoidance Petri Net Controller for Manufacturing Systems with Multiple Resource Service," Proceedings of the 2005 IEEE International Conference on Robotics and Automation, Barcelona, Spain, 2005, pp. 4757-4761, doi: 10.1109/ROBOT.2005.1570855. keywords: {System recovery;Control systems;Manufacturing systems;Automatic control;Petri nets;Optimal control;Manufacturing automation;Control system synthesis;Assembly systems;Sufficient conditions;Automatic Manufacturing Systems;Petri Net;Deadlock Avoidance;Optimal Control},
+
+
+
+Modelling the Sustainable Development of the Ground Handling Process Using the PERT-COST Method
+////
+Kierzkowski, A.; Ryczyński, J.; Kisiel, T.; Mardeusz, E.; Prentkovskis, O. Modelling the Sustainable Development of the Ground Handling Process Using the PERT-COST Method. Sustainability 2025, 17, 11278. https://doi.org/10.3390/su172411278
+
+
+
+Liveness_Analysis_and_Deadlock_Control_for_Automated_Manufacturing_Systems_With_Multiple_Resource_Requirements
+////
+Y. Feng, K. Xing, M. Zhou and H. Liu, "Liveness Analysis and Deadlock Control for Automated Manufacturing Systems With Multiple Resource Requirements," in IEEE Transactions on Systems, Man, and Cybernetics: Systems, vol. 50, no. 2, pp. 525-538, Feb. 2020, doi: 10.1109/TSMC.2017.2767902.
+keywords: {System recovery;Petri nets;Manufacturing systems;Control systems;Resource management;Cybernetics;Automated manufacturing system (AMS);deadlock prevention;discrete event systems;Petri nets;resource transition-circuits;siphon},
+
+
+
+On Deadlock/Livelock Studies Based on Reachability Graph of Petri Nets by Using TINA
+////
+M. Uzam et al., "On Deadlock/Livelock Studies Based on Reachability Graph of Petri Nets by Using TINA," in IEEE Access, vol. 12, pp. 135506-135534, 2024, doi: 10.1109/ACCESS.2024.3461168.
+keywords: {System recovery;Computational modeling;Frequency modulation;Analytical models;Prevention and mitigation;Petri nets;Production;Flexible manufacturing systems;Flexible manufacturing systems (FMS);deadlock;deadlock prevention;Petri Nets (PN);liveness enforcing supervisor (LES);PN computation tools},
+
+
+
+Enhanced Operational Management Of Airport Ground Support Equipment For Better Aircraft Turnaround Performance
+////
+S. Saggar, M. Tomasella, G. Cattaneo and A. Matta, "Enhanced Operational Management Of Airport Ground Support Equipment For Better Aircraft Turnaround Performance," 2021 Winter Simulation Conference (WSC), Phoenix, AZ, USA, 2021, pp. 1-12, doi: 10.1109/WSC52266.2021.9715320. keywords: {Uncertainty;Atmospheric modeling;Airports;Real-time systems;Delays;Planning;Ground support},
+
+
+

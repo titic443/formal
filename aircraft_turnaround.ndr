@@ -1,0 +1,223 @@
+net {Aircraft_Turnaround_3Aircraft}
+
+nt 70 15 {AIRCRAFT TURNAROUND PROCESS - P/T Petri Net Model}
+nt 70 35 {3 aircraft share: Runway(1), Bay(1), FuelTruck(1), CateringTruck(1), Apron(cap=2), GSEPermit(cap=2)}
+nt 70 50 {AND-fork after Docking - parallel Refueling & Catering - AND-join before Boarding}
+
+p 1850 120 {P_Runway} 1 n
+p 1850 350 {P_Bay} 1 n
+p 2020 120 {P_FuelTruck} 1 n
+p 2020 580 {P_CateringTruck} 1 n
+p 2170 350 {P_Apron} 2 n
+p 2170 580 {P_GSEPermit} 2 n
+
+nt 40 70 {=== Aircraft A1 ===}
+p 70 100 {P_A1_Ready} 1 n
+p 250 100 {P_A1_OnRunway} 0 n
+p 430 100 {P_A1_Docked} 0 n
+p 610 180 {P_A1_ReadyFuel} 0 n
+p 610 255 {P_A1_ReadyCat} 0 n
+p 790 180 {P_A1_Fueling} 0 n
+p 790 255 {P_A1_Catering} 0 n
+p 970 180 {P_A1_FuelDone} 0 n
+p 970 255 {P_A1_CatDone} 0 n
+p 1150 100 {P_A1_GHDone} 0 n
+p 1330 100 {P_A1_Boarding} 0 n
+p 1510 100 {P_A1_Departing} 0 n
+p 1690 100 {P_A1_Done} 0 n
+
+t 160 100 {T_A1_Land} 0 w n
+t 340 100 {T_A1_Dock} 0 w n
+t 520 100 {T_A1_Fork} 0 w n
+t 700 180 {T_A1_StartFuel} 0 w n
+t 880 180 {T_A1_EndFuel} 0 w n
+t 700 255 {T_A1_StartCat} 0 w n
+t 880 255 {T_A1_EndCat} 0 w n
+t 1060 100 {T_A1_Join} 0 w n
+t 1240 100 {T_A1_Board} 0 w n
+t 1420 100 {T_A1_Pushback} 0 w n
+t 1600 100 {T_A1_Takeoff} 0 w n
+
+e {P_A1_Ready} {T_A1_Land} 1
+e {P_Runway} {T_A1_Land} 1
+e {T_A1_Land} {P_A1_OnRunway} 1
+e {P_A1_OnRunway} {T_A1_Dock} 1
+e {P_Bay} {T_A1_Dock} 1
+e {T_A1_Dock} {P_A1_Docked} 1
+e {T_A1_Dock} {P_Runway} 1
+e {P_A1_Docked} {T_A1_Fork} 1
+e {T_A1_Fork} {P_A1_ReadyFuel} 1
+e {T_A1_Fork} {P_A1_ReadyCat} 1
+e {P_A1_ReadyFuel} {T_A1_StartFuel} 1
+e {P_FuelTruck} {T_A1_StartFuel} 1
+e {P_Apron} {T_A1_StartFuel} 1
+e {P_GSEPermit} {T_A1_StartFuel} 1
+e {T_A1_StartFuel} {P_A1_Fueling} 1
+e {P_A1_Fueling} {T_A1_EndFuel} 1
+e {T_A1_EndFuel} {P_A1_FuelDone} 1
+e {T_A1_EndFuel} {P_FuelTruck} 1
+e {T_A1_EndFuel} {P_Apron} 1
+e {T_A1_EndFuel} {P_GSEPermit} 1
+e {P_A1_ReadyCat} {T_A1_StartCat} 1
+e {P_CateringTruck} {T_A1_StartCat} 1
+e {P_Apron} {T_A1_StartCat} 1
+e {P_GSEPermit} {T_A1_StartCat} 1
+e {T_A1_StartCat} {P_A1_Catering} 1
+e {P_A1_Catering} {T_A1_EndCat} 1
+e {T_A1_EndCat} {P_A1_CatDone} 1
+e {T_A1_EndCat} {P_CateringTruck} 1
+e {T_A1_EndCat} {P_Apron} 1
+e {T_A1_EndCat} {P_GSEPermit} 1
+e {P_A1_FuelDone} {T_A1_Join} 1
+e {P_A1_CatDone} {T_A1_Join} 1
+e {T_A1_Join} {P_A1_GHDone} 1
+e {P_A1_GHDone} {T_A1_Board} 1
+e {T_A1_Board} {P_A1_Boarding} 1
+e {P_A1_Boarding} {T_A1_Pushback} 1
+e {T_A1_Pushback} {P_A1_Departing} 1
+e {T_A1_Pushback} {P_Bay} 1
+e {P_A1_Departing} {T_A1_Takeoff} 1
+e {P_Runway} {T_A1_Takeoff} 1
+e {T_A1_Takeoff} {P_A1_Done} 1
+e {T_A1_Takeoff} {P_Runway} 1
+
+nt 40 470 {=== Aircraft A2 ===}
+p 70 500 {P_A2_Ready} 1 n
+p 250 500 {P_A2_OnRunway} 0 n
+p 430 500 {P_A2_Docked} 0 n
+p 610 580 {P_A2_ReadyFuel} 0 n
+p 610 655 {P_A2_ReadyCat} 0 n
+p 790 580 {P_A2_Fueling} 0 n
+p 790 655 {P_A2_Catering} 0 n
+p 970 580 {P_A2_FuelDone} 0 n
+p 970 655 {P_A2_CatDone} 0 n
+p 1150 500 {P_A2_GHDone} 0 n
+p 1330 500 {P_A2_Boarding} 0 n
+p 1510 500 {P_A2_Departing} 0 n
+p 1690 500 {P_A2_Done} 0 n
+
+t 160 500 {T_A2_Land} 0 w n
+t 340 500 {T_A2_Dock} 0 w n
+t 520 500 {T_A2_Fork} 0 w n
+t 700 580 {T_A2_StartFuel} 0 w n
+t 880 580 {T_A2_EndFuel} 0 w n
+t 700 655 {T_A2_StartCat} 0 w n
+t 880 655 {T_A2_EndCat} 0 w n
+t 1060 500 {T_A2_Join} 0 w n
+t 1240 500 {T_A2_Board} 0 w n
+t 1420 500 {T_A2_Pushback} 0 w n
+t 1600 500 {T_A2_Takeoff} 0 w n
+
+e {P_A2_Ready} {T_A2_Land} 1
+e {P_Runway} {T_A2_Land} 1
+e {T_A2_Land} {P_A2_OnRunway} 1
+e {P_A2_OnRunway} {T_A2_Dock} 1
+e {P_Bay} {T_A2_Dock} 1
+e {T_A2_Dock} {P_A2_Docked} 1
+e {T_A2_Dock} {P_Runway} 1
+e {P_A2_Docked} {T_A2_Fork} 1
+e {T_A2_Fork} {P_A2_ReadyFuel} 1
+e {T_A2_Fork} {P_A2_ReadyCat} 1
+e {P_A2_ReadyFuel} {T_A2_StartFuel} 1
+e {P_FuelTruck} {T_A2_StartFuel} 1
+e {P_Apron} {T_A2_StartFuel} 1
+e {P_GSEPermit} {T_A2_StartFuel} 1
+e {T_A2_StartFuel} {P_A2_Fueling} 1
+e {P_A2_Fueling} {T_A2_EndFuel} 1
+e {T_A2_EndFuel} {P_A2_FuelDone} 1
+e {T_A2_EndFuel} {P_FuelTruck} 1
+e {T_A2_EndFuel} {P_Apron} 1
+e {T_A2_EndFuel} {P_GSEPermit} 1
+e {P_A2_ReadyCat} {T_A2_StartCat} 1
+e {P_CateringTruck} {T_A2_StartCat} 1
+e {P_Apron} {T_A2_StartCat} 1
+e {P_GSEPermit} {T_A2_StartCat} 1
+e {T_A2_StartCat} {P_A2_Catering} 1
+e {P_A2_Catering} {T_A2_EndCat} 1
+e {T_A2_EndCat} {P_A2_CatDone} 1
+e {T_A2_EndCat} {P_CateringTruck} 1
+e {T_A2_EndCat} {P_Apron} 1
+e {T_A2_EndCat} {P_GSEPermit} 1
+e {P_A2_FuelDone} {T_A2_Join} 1
+e {P_A2_CatDone} {T_A2_Join} 1
+e {T_A2_Join} {P_A2_GHDone} 1
+e {P_A2_GHDone} {T_A2_Board} 1
+e {T_A2_Board} {P_A2_Boarding} 1
+e {P_A2_Boarding} {T_A2_Pushback} 1
+e {T_A2_Pushback} {P_A2_Departing} 1
+e {T_A2_Pushback} {P_Bay} 1
+e {P_A2_Departing} {T_A2_Takeoff} 1
+e {P_Runway} {T_A2_Takeoff} 1
+e {T_A2_Takeoff} {P_A2_Done} 1
+e {T_A2_Takeoff} {P_Runway} 1
+
+nt 40 870 {=== Aircraft A3 ===}
+p 70 900 {P_A3_Ready} 1 n
+p 250 900 {P_A3_OnRunway} 0 n
+p 430 900 {P_A3_Docked} 0 n
+p 610 980 {P_A3_ReadyFuel} 0 n
+p 610 1055 {P_A3_ReadyCat} 0 n
+p 790 980 {P_A3_Fueling} 0 n
+p 790 1055 {P_A3_Catering} 0 n
+p 970 980 {P_A3_FuelDone} 0 n
+p 970 1055 {P_A3_CatDone} 0 n
+p 1150 900 {P_A3_GHDone} 0 n
+p 1330 900 {P_A3_Boarding} 0 n
+p 1510 900 {P_A3_Departing} 0 n
+p 1690 900 {P_A3_Done} 0 n
+
+t 160 900 {T_A3_Land} 0 w n
+t 340 900 {T_A3_Dock} 0 w n
+t 520 900 {T_A3_Fork} 0 w n
+t 700 980 {T_A3_StartFuel} 0 w n
+t 880 980 {T_A3_EndFuel} 0 w n
+t 700 1055 {T_A3_StartCat} 0 w n
+t 880 1055 {T_A3_EndCat} 0 w n
+t 1060 900 {T_A3_Join} 0 w n
+t 1240 900 {T_A3_Board} 0 w n
+t 1420 900 {T_A3_Pushback} 0 w n
+t 1600 900 {T_A3_Takeoff} 0 w n
+
+e {P_A3_Ready} {T_A3_Land} 1
+e {P_Runway} {T_A3_Land} 1
+e {T_A3_Land} {P_A3_OnRunway} 1
+e {P_A3_OnRunway} {T_A3_Dock} 1
+e {P_Bay} {T_A3_Dock} 1
+e {T_A3_Dock} {P_A3_Docked} 1
+e {T_A3_Dock} {P_Runway} 1
+e {P_A3_Docked} {T_A3_Fork} 1
+e {T_A3_Fork} {P_A3_ReadyFuel} 1
+e {T_A3_Fork} {P_A3_ReadyCat} 1
+e {P_A3_ReadyFuel} {T_A3_StartFuel} 1
+e {P_FuelTruck} {T_A3_StartFuel} 1
+e {P_Apron} {T_A3_StartFuel} 1
+e {P_GSEPermit} {T_A3_StartFuel} 1
+e {T_A3_StartFuel} {P_A3_Fueling} 1
+e {P_A3_Fueling} {T_A3_EndFuel} 1
+e {T_A3_EndFuel} {P_A3_FuelDone} 1
+e {T_A3_EndFuel} {P_FuelTruck} 1
+e {T_A3_EndFuel} {P_Apron} 1
+e {T_A3_EndFuel} {P_GSEPermit} 1
+e {P_A3_ReadyCat} {T_A3_StartCat} 1
+e {P_CateringTruck} {T_A3_StartCat} 1
+e {P_Apron} {T_A3_StartCat} 1
+e {P_GSEPermit} {T_A3_StartCat} 1
+e {T_A3_StartCat} {P_A3_Catering} 1
+e {P_A3_Catering} {T_A3_EndCat} 1
+e {T_A3_EndCat} {P_A3_CatDone} 1
+e {T_A3_EndCat} {P_CateringTruck} 1
+e {T_A3_EndCat} {P_Apron} 1
+e {T_A3_EndCat} {P_GSEPermit} 1
+e {P_A3_FuelDone} {T_A3_Join} 1
+e {P_A3_CatDone} {T_A3_Join} 1
+e {T_A3_Join} {P_A3_GHDone} 1
+e {P_A3_GHDone} {T_A3_Board} 1
+e {T_A3_Board} {P_A3_Boarding} 1
+e {P_A3_Boarding} {T_A3_Pushback} 1
+e {T_A3_Pushback} {P_A3_Departing} 1
+e {T_A3_Pushback} {P_Bay} 1
+e {P_A3_Departing} {T_A3_Takeoff} 1
+e {P_Runway} {T_A3_Takeoff} 1
+e {T_A3_Takeoff} {P_A3_Done} 1
+e {T_A3_Takeoff} {P_Runway} 1
+
