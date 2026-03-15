@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>Aircraft Turnaround — P/T Petri Net (3 Aircraft)</title>
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 20px;
+  background: #f0f4f8;
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+h1 { margin: 0 0 4px; font-size: 18px; color: #1a1a2e; }
+.sub { margin: 0 0 12px; font-size: 12px; color: #555; }
+.legend {
+  display: flex; flex-wrap: wrap; gap: 18px;
+  margin-bottom: 14px; font-size: 12px;
+  background: #fff; padding: 10px 16px;
+  border: 1px solid #e0e0e0; border-radius: 8px;
+  align-items: center;
+}
+.legend span { display: flex; align-items: center; gap: 5px; }
+.wrap {
+  overflow: auto;
+  background: #fff; border-radius: 10px;
+  box-shadow: 0 2px 16px rgba(0,0,0,.13);
+  cursor: grab;
+}
+.wrap:active { cursor: grabbing; }
+</style>
+</head>
+<body>
+<h1>✈ Aircraft Turnaround Process — P/T Petri Net (3 Aircraft)</h1>
+<p class="sub">
+  45 Places (○) · 33 Transitions (□) · 126 Arcs (→) &nbsp;|&nbsp;
+  Aircraft A1 (แถวบน) · A2 (แถวกลาง) · A3 (แถวล่าง) · Shared Resources (คอลัมน์ขวา)
+</p>
+<div class="legend">
+  <span>
+    <svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="#dbeafe" stroke="#1d4ed8" stroke-width="2"/></svg>
+    Place (วงกลม)
+  </span>
+  <span>
+    <svg width="42" height="22"><rect x="1" y="4" width="40" height="14" fill="#fef3c7" stroke="#b45309" stroke-width="2" rx="2"/></svg>
+    Transition (สี่เหลี่ยม)
+  </span>
+  <span>
+    <svg width="46" height="22"><circle cx="11" cy="11" r="10" fill="#fce7f3" stroke="#9d174d" stroke-width="2.5"/><text x="11" y="15" text-anchor="middle" font-size="10" fill="#9d174d" font-weight="bold">2</text></svg>
+    Shared Resource (ชมพู)
+  </span>
+  <span><svg width="30" height="10"><line x1="0" y1="5" x2="24" y2="5" stroke="#1d4ed8" stroke-width="2"/><polygon points="24,1 30,5 24,9" fill="#1d4ed8"/></svg> A1 arc</span>
+  <span><svg width="30" height="10"><line x1="0" y1="5" x2="24" y2="5" stroke="#d97706" stroke-width="2"/><polygon points="24,1 30,5 24,9" fill="#d97706"/></svg> A2 arc</span>
+  <span><svg width="30" height="10"><line x1="0" y1="5" x2="24" y2="5" stroke="#16a34a" stroke-width="2"/><polygon points="24,1 30,5 24,9" fill="#16a34a"/></svg> A3 arc</span>
+  <span><svg width="36" height="10"><line x1="0" y1="5" x2="28" y2="5" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="5,3"/><polygon points="28,2 34,5 28,8" fill="#7c3aed"/></svg> Shared arc</span>
+  <span><svg width="14" height="14"><circle cx="7" cy="7" r="5" fill="#1e293b"/></svg> Token (marking)</span>
+</div>
+<div class="wrap">
+  <svg id="petri" xmlns="http://www.w3.org/2000/svg"></svg>
+</div>
+
+<script>
+const W = 2620, H = 1260;
+const PR = 22;       // place radius
+const TW = 40, TH = 24; // transition half-width, half-height
+
+const svg = document.getElementById('petri');
+svg.setAttribute('width', W);
+svg.setAttribute('height', H);
+const NS = 'http://www.w3.org/2000/svg';
+
+function mk(tag, attrs, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v);
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+// ─────── DEFS (markers, gradients) ───────
+const defs = mk('defs');
+
+function makeMarker(id, color) {
+  const m = mk('marker', {
+    id, markerWidth: 10, markerHeight: 10,
+    refX: 9, refY: 5, orient: 'auto', markerUnits: 'userSpaceOnUse'
+  });
+  m.appendChild(mk('path', { d: 'M0,1 L0,9 L9,5 z', fill: color }));
+  return m;
+}
+
+defs.appendChild(makeMarker('arr-a1', '#1d4ed8'));
+defs.appendChild(makeMarker('arr-a2', '#d97706'));
+defs.appendChild(makeMarker('arr-a3', '#16a34a'));
+defs.appendChild(makeMarker('arr-sh', '#7c3aed'));
+
+// band gradients
+['A1','A2','A3'].forEach((an, i) => {
+  const c = ['#eff6ff','#fffbeb','#f0fdf4'][i];
+  const g = mk('linearGradient', {id:`bg-${an}`, x1:'0%', y1:'0%', x2:'100%', y2:'0%'});
+  g.appendChild(mk('stop', {offset:'0%', 'stop-color': c, 'stop-opacity': '1'}));
+  g.appendChild(mk('stop', {offset:'100%', 'stop-color': '#ffffff', 'stop-opacity': '0.5'}));
+  defs.appendChild(g);
+});
+svg.appendChild(defs);
+
+// ─────── NODE POSITIONS ───────
+const baseYs = { A1: 278, A2: 650, A3: 1022 };
+const YFUEL = -90, YCAT = 90;
+
+// X positions for each node type
+const XP = {
+  Ready: 80,
+  OnRunway: 312,
+  Docked: 534,
+  ReadyFuel: 752, ReadyCat: 752,
+  Fueling: 973, Catering: 973,
+  FuelDone: 1194, CatDone: 1194,
+  GHDone: 1418,
+  Boarding: 1640,
+  Departing: 1862,
+  Done: 2116
+};
+const XT = {
+  Land: 196,
+  Dock: 423,
+  Fork: 643,
+  StartFuel: 862, StartCat: 862,
+  EndFuel: 1083, EndCat: 1083,
+  Join: 1306,
+  Board: 1529,
+  Pushback: 1751,
+  Takeoff: 1989
+};
+
+// Shared resource positions
+const SRX = 2420;
+const sharedDefs = [
+  { id: 'P_Runway',        x: SRX, y: 165,  label: 'P_Runway',        marking: 1,  color: '#fce7f3', border: '#9d174d' },
+  { id: 'P_Bay',           x: SRX, y: 340,  label: 'P_Bay',           marking: 1,  color: '#fce7f3', border: '#9d174d' },
+  { id: 'P_FuelTruck',     x: SRX, y: 515,  label: 'P_FuelTruck',     marking: 1,  color: '#fce7f3', border: '#9d174d' },
+  { id: 'P_CateringTruck', x: SRX, y: 690,  label: 'P_CateringTruck', marking: 1,  color: '#fce7f3', border: '#9d174d' },
+  { id: 'P_Apron',         x: SRX, y: 865,  label: 'P_Apron',         marking: 2,  color: '#fce7f3', border: '#9d174d' },
+  { id: 'P_GSEPermit',     x: SRX, y: 1040, label: 'P_GSEPermit',     marking: 2,  color: '#fce7f3', border: '#9d174d' },
+];
+
+// Build node dictionary
+const nodes = {};
+
+for (const shd of sharedDefs) {
+  nodes[shd.id] = { type: 'place', x: shd.x, y: shd.y, label: shd.label, marking: shd.marking, color: shd.color, border: shd.border, shared: true };
+}
+
+const aircraftColors = {
+  A1: { placeF: '#dbeafe', placeB: '#1d4ed8', transF: '#fef3c7', transB: '#92400e', arcColor: '#1d4ed8', marker: 'arr-a1' },
+  A2: { placeF: '#fef3c7', placeB: '#d97706', transF: '#fff7ed', transB: '#9a3412', arcColor: '#d97706', marker: 'arr-a2' },
+  A3: { placeF: '#dcfce7', placeB: '#16a34a', transF: '#f0fdf4', transB: '#14532d', arcColor: '#16a34a', marker: 'arr-a3' },
+};
+
+for (const an of ['A1','A2','A3']) {
+  const by = baseYs[an];
+  const col = aircraftColors[an];
+
+  // Places
+  const placeList = [
+    ['Ready', XP.Ready, 0], ['OnRunway', XP.OnRunway, 0], ['Docked', XP.Docked, 0],
+    ['ReadyFuel', XP.ReadyFuel, YFUEL], ['ReadyCat', XP.ReadyCat, YCAT],
+    ['Fueling', XP.Fueling, YFUEL], ['Catering', XP.Catering, YCAT],
+    ['FuelDone', XP.FuelDone, YFUEL], ['CatDone', XP.CatDone, YCAT],
+    ['GHDone', XP.GHDone, 0], ['Boarding', XP.Boarding, 0],
+    ['Departing', XP.Departing, 0], ['Done', XP.Done, 0]
+  ];
+  for (const [name, x, dy] of placeList) {
+    const marking = name === 'Ready' ? 1 : 0;
+    nodes[`P_${an}_${name}`] = {
+      type: 'place', x, y: by + dy,
+      label: `P_${an}_${name}`, shortLabel: name,
+      marking, color: col.placeF, border: col.placeB,
+      aircraft: an
+    };
+  }
+
+  // Transitions
+  const transList = [
+    ['Land', XT.Land, 0], ['Dock', XT.Dock, 0], ['Fork', XT.Fork, 0],
+    ['StartFuel', XT.StartFuel, YFUEL], ['StartCat', XT.StartCat, YCAT],
+    ['EndFuel', XT.EndFuel, YFUEL], ['EndCat', XT.EndCat, YCAT],
+    ['Join', XT.Join, 0], ['Board', XT.Board, 0],
+    ['Pushback', XT.Pushback, 0], ['Takeoff', XT.Takeoff, 0]
+  ];
+  for (const [name, x, dy] of transList) {
+    nodes[`T_${an}_${name}`] = {
+      type: 'transition', x, y: by + dy,
+      label: `T_${an}_${name}`, shortLabel: name,
+      color: col.transF, border: col.transB,
+      aircraft: an
+    };
+  }
+}
+
+// ─────── ARCS ───────
+const arcs = [];
+
+for (const an of ['A1','A2','A3']) {
+  const col = aircraftColors[an];
+  const acolor = col.arcColor;
+  const amarker = col.marker;
+
+  // MAIN FLOW arcs
+  const mainArcs = [
+    [`P_${an}_Ready`,    `T_${an}_Land`],
+    [`T_${an}_Land`,     `P_${an}_OnRunway`],
+    [`P_${an}_OnRunway`, `T_${an}_Dock`],
+    [`T_${an}_Dock`,     `P_${an}_Docked`],
+    [`P_${an}_Docked`,   `T_${an}_Fork`],
+    [`T_${an}_Fork`,     `P_${an}_ReadyFuel`],
+    [`T_${an}_Fork`,     `P_${an}_ReadyCat`],
+    [`P_${an}_ReadyFuel`,  `T_${an}_StartFuel`],
+    [`T_${an}_StartFuel`,  `P_${an}_Fueling`],
+    [`P_${an}_Fueling`,    `T_${an}_EndFuel`],
+    [`T_${an}_EndFuel`,    `P_${an}_FuelDone`],
+    [`P_${an}_ReadyCat`,   `T_${an}_StartCat`],
+    [`T_${an}_StartCat`,   `P_${an}_Catering`],
+    [`P_${an}_Catering`,   `T_${an}_EndCat`],
+    [`T_${an}_EndCat`,     `P_${an}_CatDone`],
+    [`P_${an}_FuelDone`, `T_${an}_Join`],
+    [`P_${an}_CatDone`,  `T_${an}_Join`],
+    [`T_${an}_Join`,     `P_${an}_GHDone`],
+    [`P_${an}_GHDone`,   `T_${an}_Board`],
+    [`T_${an}_Board`,    `P_${an}_Boarding`],
+    [`P_${an}_Boarding`, `T_${an}_Pushback`],
+    [`T_${an}_Pushback`, `P_${an}_Departing`],
+    [`P_${an}_Departing`,`T_${an}_Takeoff`],
+    [`T_${an}_Takeoff`,  `P_${an}_Done`],
+  ];
+  for (const [f, t] of mainArcs) {
+    arcs.push({ from: f, to: t, color: acolor, marker: amarker, style: 'main' });
+  }
+
+  // SHARED RESOURCE arcs
+  const sharedArcs = [
+    // Runway ↔ Land
+    ['P_Runway',         `T_${an}_Land`,      'use'],
+    [`T_${an}_Dock`,     'P_Runway',           'return'],
+    // Bay ↔ Dock/Pushback
+    ['P_Bay',            `T_${an}_Dock`,       'use'],
+    [`T_${an}_Pushback`, 'P_Bay',              'return'],
+    // FuelTruck
+    ['P_FuelTruck',      `T_${an}_StartFuel`,  'use'],
+    [`T_${an}_EndFuel`,  'P_FuelTruck',        'return'],
+    // CateringTruck
+    ['P_CateringTruck',  `T_${an}_StartCat`,   'use'],
+    [`T_${an}_EndCat`,   'P_CateringTruck',    'return'],
+    // Apron (fuel)
+    ['P_Apron',          `T_${an}_StartFuel`,  'use'],
+    [`T_${an}_EndFuel`,  'P_Apron',            'return'],
+    // Apron (catering)
+    ['P_Apron',          `T_${an}_StartCat`,   'use'],
+    [`T_${an}_EndCat`,   'P_Apron',            'return'],
+    // GSEPermit (fuel)
+    ['P_GSEPermit',      `T_${an}_StartFuel`,  'use'],
+    [`T_${an}_EndFuel`,  'P_GSEPermit',        'return'],
+    // GSEPermit (catering)
+    ['P_GSEPermit',      `T_${an}_StartCat`,   'use'],
+    [`T_${an}_EndCat`,   'P_GSEPermit',        'return'],
+    // Runway ↔ Takeoff
+    ['P_Runway',         `T_${an}_Takeoff`,    'use'],
+    [`T_${an}_Takeoff`,  'P_Runway',           'return'],
+  ];
+  for (const [f, t, kind] of sharedArcs) {
+    arcs.push({ from: f, to: t, color: '#7c3aed', marker: 'arr-sh', style: 'shared', kind });
+  }
+}
+
+// ─────── GEOMETRY HELPERS ───────
+function nodeCenter(id) {
+  const n = nodes[id];
+  return [n.x, n.y];
+}
+
+function edgePoint(id, targetX, targetY) {
+  const n = nodes[id];
+  const dx = targetX - n.x, dy = targetY - n.y;
+  const d = Math.sqrt(dx*dx + dy*dy) || 1;
+  const ux = dx/d, uy = dy/d;
+  if (n.type === 'place') {
+    return [n.x + ux*PR, n.y + uy*PR];
+  } else {
+    // transition rectangle
+    const hw = TW/2, hh = TH/2;
+    const t = Math.min(
+      Math.abs(ux) > 0.001 ? hw / Math.abs(ux) : Infinity,
+      Math.abs(uy) > 0.001 ? hh / Math.abs(uy) : Infinity
+    );
+    return [n.x + ux*t, n.y + uy*t];
+  }
+}
+
+// ─────── DRAW BACKGROUND BANDS ───────
+const bandData = [
+  { an: 'A1', by: baseYs.A1, spread: 98, fill: '#eff6ff', label: 'Aircraft A1' },
+  { an: 'A2', by: baseYs.A2, spread: 98, fill: '#fffbeb', label: 'Aircraft A2' },
+  { an: 'A3', by: baseYs.A3, spread: 98, fill: '#f0fdf4', label: 'Aircraft A3' },
+];
+
+// Overall background
+svg.appendChild(mk('rect', { x:0, y:0, width:W, height:H, fill:'#f8fafc' }));
+
+for (const {an, by, spread, fill, label} of bandData) {
+  svg.appendChild(mk('rect', {
+    x: 20, y: by - spread - 10, width: 2180, height: (spread+10)*2 + 20,
+    fill, rx: 8, opacity: 0.8
+  }));
+  svg.appendChild(mk('text', {
+    x: 30, y: by - spread - 14,
+    'font-size': 11, fill: aircraftColors[an].placeB,
+    'font-weight': 'bold', opacity: 0.7
+  }, label));
+}
+
+// Shared resources panel
+svg.appendChild(mk('rect', {
+  x: SRX - 80, y: 80, width: 200, height: H - 160,
+  fill: '#fdf4ff', stroke: '#e9d5ff', 'stroke-width': 1.5, rx: 10, opacity: 0.95
+}));
+svg.appendChild(mk('text', {
+  x: SRX, y: 100, 'text-anchor': 'middle',
+  'font-size': 11, fill: '#6b21a8', 'font-weight': 'bold'
+}, 'Shared Resources'));
+
+// ─────── DRAW ARCS ───────
+// Draw shared arcs first (behind everything), then main arcs
+
+// Shared arcs — use curved bezier for routing
+const sharedLayer = mk('g', { id: 'shared-arcs' });
+const mainLayer = mk('g', { id: 'main-arcs' });
+svg.appendChild(sharedLayer);
+svg.appendChild(mainLayer);
+
+for (const arc of arcs) {
+  const fn = nodes[arc.from];
+  const tn = nodes[arc.to];
+  if (!fn || !tn) continue;
+
+  const [x1, y1] = edgePoint(arc.from, tn.x, tn.y);
+  const [x2, y2] = edgePoint(arc.to, fn.x, fn.y);
+
+  if (arc.style === 'main') {
+    const path = mk('path', {
+      d: `M${x1.toFixed(1)},${y1.toFixed(1)} L${x2.toFixed(1)},${y2.toFixed(1)}`,
+      stroke: arc.color,
+      'stroke-width': 1.8,
+      fill: 'none',
+      'marker-end': `url(#${arc.marker})`
+    });
+    mainLayer.appendChild(path);
+
+  } else {
+    // Shared resource arcs — cubic bezier routed to avoid clutter
+    // Control points: fan out from shared resource toward the diagram center,
+    // then arc down/up to the target transition
+    const midX = (x1 + x2) / 2;
+    const midY = (y1 + y2) / 2;
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.sqrt(dx*dx + dy*dy);
+
+    // For long arcs (shared resource to aircraft): use gentle curve
+    // Control points offset perpendicular to the line
+    const curveAmount = Math.min(len * 0.25, 120);
+    const perpX = -dy / len * curveAmount;
+    const perpY = dx / len * curveAmount;
+
+    // Determine curve direction based on arc kind
+    const sign = arc.kind === 'use' ? 1 : -1;
+    const cpX = midX + perpX * sign;
+    const cpY = midY + perpY * sign;
+
+    const path = mk('path', {
+      d: `M${x1.toFixed(1)},${y1.toFixed(1)} Q${cpX.toFixed(1)},${cpY.toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}`,
+      stroke: arc.color,
+      'stroke-width': 1.2,
+      'stroke-dasharray': '6,3',
+      fill: 'none',
+      opacity: 0.6,
+      'marker-end': `url(#${arc.marker})`
+    });
+    sharedLayer.appendChild(path);
+  }
+}
+
+// ─────── DRAW NODES ───────
+const nodeLayer = mk('g', { id: 'nodes' });
+svg.appendChild(nodeLayer);
+
+for (const [id, node] of Object.entries(nodes)) {
+  const g = mk('g', { class: 'node', id: `node-${id}` });
+
+  if (node.type === 'place') {
+    // Circle
+    g.appendChild(mk('circle', {
+      cx: node.x, cy: node.y, r: PR,
+      fill: node.color, stroke: node.border, 'stroke-width': node.shared ? 2.5 : 2
+    }));
+
+    // Tokens (marking as dots)
+    if (node.marking > 0) {
+      if (node.marking === 1) {
+        g.appendChild(mk('circle', { cx: node.x, cy: node.y, r: 5, fill: '#1e293b' }));
+      } else if (node.marking === 2) {
+        g.appendChild(mk('circle', { cx: node.x - 6, cy: node.y, r: 4, fill: '#1e293b' }));
+        g.appendChild(mk('circle', { cx: node.x + 6, cy: node.y, r: 4, fill: '#1e293b' }));
+      }
+    }
+
+    // Label below
+    const labelText = node.shared ? node.label : node.shortLabel;
+    if (node.shared) {
+      // Shared: label inside circle (split if needed)
+      const parts = labelText.replace('P_', '').split(/(?=[A-Z])/);
+      const shortName = labelText.replace('P_', '');
+      // Draw marking count inside
+      g.appendChild(mk('text', {
+        x: node.x, y: node.y + PR + 13,
+        'text-anchor': 'middle', 'font-size': 10,
+        fill: node.border, 'font-weight': 'bold'
+      }, shortName));
+      // Marking label
+      if (node.marking > 0) {
+        g.appendChild(mk('text', {
+          x: node.x, y: node.y + PR + 24,
+          'text-anchor': 'middle', 'font-size': 9, fill: '#666'
+        }, `(${node.marking} token${node.marking > 1 ? 's' : ''})`));
+      }
+    } else {
+      // Aircraft place: short label above
+      const labelY = node.y > baseYs[node.aircraft]
+        ? node.y + PR + 12   // cat lane: below
+        : node.y - PR - 5;   // main/fuel lane: above
+      g.appendChild(mk('text', {
+        x: node.x, y: labelY,
+        'text-anchor': 'middle', 'font-size': 9,
+        fill: node.border, 'font-weight': 'bold'
+      }, labelText || node.shortLabel));
+    }
+
+  } else {
+    // Transition: rectangle
+    const hw = TW / 2, hh = TH / 2;
+    g.appendChild(mk('rect', {
+      x: node.x - hw, y: node.y - hh,
+      width: TW, height: TH,
+      fill: node.color, stroke: node.border, 'stroke-width': 2,
+      rx: 3
+    }));
+
+    // Label
+    const labelY = node.y > baseYs[node.aircraft]
+      ? node.y + hh + 12   // cat lane: below
+      : node.y - hh - 5;   // main/fuel lane: above
+    g.appendChild(mk('text', {
+      x: node.x, y: labelY,
+      'text-anchor': 'middle', 'font-size': 9,
+      fill: node.border, 'font-weight': 'bold'
+    }, node.shortLabel));
+  }
+
+  nodeLayer.appendChild(g);
+}
+
+// ─────── AXIS LABELS (Process Steps) ───────
+const axisLayer = mk('g', { id: 'axis' });
+svg.appendChild(axisLayer);
+
+const stepLabels = [
+  [XP.Ready,    'Ready'],
+  [XT.Land,     'Land'],
+  [XP.OnRunway, 'OnRwy'],
+  [XT.Dock,     'Dock'],
+  [XP.Docked,   'Docked'],
+  [XT.Fork,     'Fork'],
+  [XP.ReadyFuel,'Grd.Hdl'],
+  [XT.Join,     'Join'],
+  [XP.GHDone,   'GHDone'],
+  [XT.Board,    'Board'],
+  [XP.Boarding, 'Boarding'],
+  [XT.Pushback, 'Pushback'],
+  [XP.Departing,'Depart'],
+  [XT.Takeoff,  'Takeoff'],
+  [XP.Done,     'Done ✓'],
+];
+
+for (const [x, label] of stepLabels) {
+  axisLayer.appendChild(mk('text', {
+    x, y: 30, 'text-anchor': 'middle',
+    'font-size': 9, fill: '#94a3b8',
+    'font-family': 'monospace'
+  }, label));
+  axisLayer.appendChild(mk('line', {
+    x1: x, y1: 35, x2: x, y2: H - 15,
+    stroke: '#e2e8f0', 'stroke-width': 0.5, 'stroke-dasharray': '3,4'
+  }));
+}
+
+// ─────── TITLE WATERMARK ───────
+svg.appendChild(mk('text', {
+  x: W - 20, y: H - 10,
+  'text-anchor': 'end', 'font-size': 9, fill: '#cbd5e1'
+}, 'Aircraft Turnaround P/T Petri Net — 45P · 33T · 126A'));
+
+// ─────── GROUND HANDLING BRACKET ───────
+// Draw a bracket showing the parallel Fuel/Catering lanes for A1
+for (const an of ['A1','A2','A3']) {
+  const by = baseYs[an];
+  const fuelY = by + YFUEL;
+  const catY  = by + YCAT;
+  const bracketX = XP.ReadyFuel - PR - 10;
+  const bracketX2 = XP.FuelDone + PR + 8;
+
+  // Bracket lines (very light)
+  const grp = mk('g', { opacity: 0.2 });
+  grp.appendChild(mk('line', { x1: bracketX, y1: fuelY - PR - 5, x2: bracketX2, y2: fuelY - PR - 5, stroke: '#94a3b8', 'stroke-width': 0.8 }));
+  grp.appendChild(mk('line', { x1: bracketX, y1: catY + PR + 5,  x2: bracketX2, y2: catY + PR + 5,  stroke: '#94a3b8', 'stroke-width': 0.8 }));
+  grp.appendChild(mk('line', { x1: bracketX, y1: fuelY - PR - 5, x2: bracketX, y2: catY + PR + 5, stroke: '#94a3b8', 'stroke-width': 0.8 }));
+  svg.appendChild(grp);
+
+  svg.appendChild(mk('text', {
+    x: (bracketX + bracketX2) / 2, y: catY + PR + 18,
+    'text-anchor': 'middle', 'font-size': 8, fill: '#94a3b8'
+  }, 'Ground Handling (Parallel)'));
+}
+
+// ─────── MARKING SUMMARY TABLE ───────
+const tableX = 30, tableY = H - 95;
+svg.appendChild(mk('rect', {
+  x: tableX - 5, y: tableY - 16, width: 520, height: 80,
+  fill: '#f8fafc', stroke: '#e2e8f0', 'stroke-width': 1, rx: 6
+}));
+svg.appendChild(mk('text', {
+  x: tableX, y: tableY,
+  'font-size': 10, fill: '#475569', 'font-weight': 'bold'
+}, 'Initial Marking Summary:'));
+const summary = [
+  'P_Ax_Ready = 1  (×3 aircraft)',
+  'P_Runway = 1  |  P_Bay = 1  |  P_FuelTruck = 1  |  P_CateringTruck = 1',
+  'P_Apron = 2  |  P_GSEPermit = 2  |  All other places = 0',
+];
+summary.forEach((s, i) => {
+  svg.appendChild(mk('text', {
+    x: tableX, y: tableY + 16 + i * 14,
+    'font-size': 9.5, fill: '#64748b'
+  }, s));
+});
+
+</script>
+</body>
+</html>

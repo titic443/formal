@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>Aircraft Turnaround — Single Aircraft Petri Net</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; padding: 20px; background: #f0f4f8; font-family: 'Segoe UI', Arial, sans-serif; }
+h1 { margin: 0 0 3px; font-size: 17px; color: #1e3a5f; }
+.sub { margin: 0 0 12px; font-size: 11.5px; color: #555; }
+.legend {
+  display: flex; flex-wrap: wrap; gap: 14px;
+  margin-bottom: 14px; font-size: 11.5px;
+  background: #fff; padding: 10px 18px;
+  border: 1px solid #dde3ea; border-radius: 8px;
+  align-items: center;
+}
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.wrap { overflow: auto; background: #fff; border-radius: 10px; box-shadow: 0 2px 16px rgba(0,0,0,.13); }
+</style>
+</head>
+<body>
+<h1>✈ Aircraft Turnaround — P/T Petri Net (Single Aircraft)</h1>
+<p class="sub">13 Places · 11 Transitions · 42 Arcs | Shared Resources วางใกล้จุดใช้งานจริง</p>
+
+<div class="legend">
+  <div class="legend-item">
+    <svg width="24" height="24"><circle cx="12" cy="12" r="11" fill="#dbeafe" stroke="#1d4ed8" stroke-width="2"/></svg>
+    Place (วงกลม)
+  </div>
+  <div class="legend-item">
+    <svg width="46" height="24"><rect x="1" y="5" width="44" height="15" fill="#fef9c3" stroke="#854d0e" stroke-width="2" rx="3"/></svg>
+    Transition (สี่เหลี่ยม)
+  </div>
+  <div class="legend-item">
+    <svg width="24" height="24"><circle cx="12" cy="12" r="11" fill="#fff7ed" stroke="#c2410c" stroke-width="2.5"/></svg>
+    Shared Resource
+  </div>
+  <div class="legend-item">
+    <svg width="34" height="12"><line x1="0" y1="6" x2="26" y2="6" stroke="#1d4ed8" stroke-width="2.2"/><polygon points="26,2 34,6 26,10" fill="#1d4ed8"/></svg>
+    Main flow
+  </div>
+  <div class="legend-item">
+    <svg width="34" height="12"><line x1="0" y1="6" x2="26" y2="6" stroke="#7e22ce" stroke-width="1.5" stroke-dasharray="5,3"/><polygon points="26,2 34,6 26,10" fill="#7e22ce"/></svg>
+    Use resource
+  </div>
+  <div class="legend-item">
+    <svg width="34" height="12"><line x1="0" y1="6" x2="26" y2="6" stroke="#059669" stroke-width="1.5" stroke-dasharray="3,3"/><polygon points="26,2 34,6 26,10" fill="#059669"/></svg>
+    Return resource
+  </div>
+  <div class="legend-item">
+    <svg width="14" height="14"><circle cx="7" cy="7" r="5" fill="#111"/></svg>
+    Token
+  </div>
+</div>
+
+<div class="wrap">
+  <svg id="pn" xmlns="http://www.w3.org/2000/svg"></svg>
+</div>
+
+<script>
+const W = 2260, H = 680;
+const PR = 25;
+const TW = 44, TH = 26;
+
+const svg = document.getElementById('pn');
+svg.setAttribute('width', W);
+svg.setAttribute('height', H);
+const NS = 'http://www.w3.org/2000/svg';
+
+function el(tag, attrs, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k,v] of Object.entries(attrs||{})) e.setAttribute(k,v);
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+// ── DEFS ──
+const defs = el('defs');
+
+function marker(id, color, size) {
+  size = size || 10;
+  const m = el('marker', { id, markerWidth:size, markerHeight:size,
+    refX:size-2, refY:size/2, orient:'auto', markerUnits:'userSpaceOnUse' });
+  m.appendChild(el('path', { d:`M0,1 L0,${size-1} L${size-2},${size/2} z`, fill:color }));
+  return m;
+}
+defs.appendChild(marker('m-main',  '#1d4ed8', 10));
+defs.appendChild(marker('m-use',   '#7e22ce', 9));
+defs.appendChild(marker('m-ret',   '#059669', 9));
+// Per-resource colored markers
+const RES_COLORS = {
+  P_Runway:        { fill:'#fff7ed', stroke:'#c2410c', arc:'#c2410c' },
+  P_Bay:           { fill:'#f0fdfa', stroke:'#0f766e', arc:'#0f766e' },
+  P_FuelTruck:     { fill:'#fef9c3', stroke:'#a16207', arc:'#a16207' },
+  P_CateringTruck: { fill:'#dcfce7', stroke:'#15803d', arc:'#15803d' },
+  P_Apron:         { fill:'#faf5ff', stroke:'#7e22ce', arc:'#7e22ce' },
+  P_GSEPermit:     { fill:'#fdf2f8', stroke:'#be185d', arc:'#be185d' },
+};
+for (const [rid, c] of Object.entries(RES_COLORS)) {
+  defs.appendChild(marker(`mu-${rid}`, c.arc, 9));
+  defs.appendChild(marker(`mr-${rid}`, c.arc, 9));
+}
+
+const filt = el('filter', {id:'sh', x:'-15%', y:'-15%', width:'130%', height:'130%'});
+filt.appendChild(el('feDropShadow', {dx:0, dy:1.5, stdDeviation:2, 'flood-opacity':0.13}));
+defs.appendChild(filt);
+
+svg.appendChild(defs);
+
+// ── POSITIONS ──
+const MY = 330, FY = 180, CY = 480;
+
+const N = {
+  // Aircraft places
+  P_Ready:     { x:82,   y:MY,  type:'place', marking:1 },
+  P_OnRunway:  { x:330,  y:MY,  type:'place', marking:0 },
+  P_Docked:    { x:572,  y:MY,  type:'place', marking:0 },
+  P_ReadyFuel: { x:788,  y:FY,  type:'place', marking:0 },
+  P_ReadyCat:  { x:788,  y:CY,  type:'place', marking:0 },
+  P_Fueling:   { x:1018, y:FY,  type:'place', marking:0 },
+  P_Catering:  { x:1018, y:CY,  type:'place', marking:0 },
+  P_FuelDone:  { x:1248, y:FY,  type:'place', marking:0 },
+  P_CatDone:   { x:1248, y:CY,  type:'place', marking:0 },
+  P_GHDone:    { x:1468, y:MY,  type:'place', marking:0 },
+  P_Boarding:  { x:1670, y:MY,  type:'place', marking:0 },
+  P_Departing: { x:1880, y:MY,  type:'place', marking:0 },
+  P_Done:      { x:2155, y:MY,  type:'place', marking:0 },
+
+  // Aircraft transitions
+  T_Land:      { x:206,  y:MY,  type:'trans' },
+  T_Dock:      { x:451,  y:MY,  type:'trans' },
+  T_Fork:      { x:680,  y:MY,  type:'trans' },
+  T_StartFuel: { x:903,  y:FY,  type:'trans' },
+  T_StartCat:  { x:903,  y:CY,  type:'trans' },
+  T_EndFuel:   { x:1133, y:FY,  type:'trans' },
+  T_EndCat:    { x:1133, y:CY,  type:'trans' },
+  T_Join:      { x:1358, y:MY,  type:'trans' },
+  T_Board:     { x:1569, y:MY,  type:'trans' },
+  T_Pushback:  { x:1775, y:MY,  type:'trans' },
+  T_Takeoff:   { x:1990, y:MY,  type:'trans' },
+
+  // Shared Resources — placed close to usage
+  // Runway: top-center (connects to T_Land & T_Takeoff)
+  P_Runway:        { x:1098, y:44,  type:'place', marking:1, res:true },
+  // Bay: bottom-center (connects to T_Dock & T_Pushback)
+  P_Bay:           { x:1113, y:610, type:'place', marking:1, res:true },
+  // FuelTruck: above fuel ops (T_StartFuel ↔ T_EndFuel)
+  P_FuelTruck:     { x:1018, y:60,  type:'place', marking:1, res:true },
+  // CateringTruck: below catering ops (T_StartCat ↔ T_EndCat)
+  P_CateringTruck: { x:1018, y:598, type:'place', marking:1, res:true },
+  // Apron: center-left between lanes (near Start transitions)
+  P_Apron:         { x:883,  y:330, type:'place', marking:2, res:true },
+  // GSEPermit: center-right between lanes (near End transitions)
+  P_GSEPermit:     { x:1153, y:330, type:'place', marking:2, res:true },
+};
+
+// ── ARCS ──
+// s: 'main' | res-id (for colored shared arcs), kind:'use'|'ret'
+const ARCS = [
+  // Main flow
+  { f:'P_Ready',    t:'T_Land',      s:'main' },
+  { f:'T_Land',     t:'P_OnRunway',  s:'main' },
+  { f:'P_OnRunway', t:'T_Dock',      s:'main' },
+  { f:'T_Dock',     t:'P_Docked',    s:'main' },
+  { f:'P_Docked',   t:'T_Fork',      s:'main' },
+  { f:'T_Fork',     t:'P_ReadyFuel', s:'main' },
+  { f:'T_Fork',     t:'P_ReadyCat',  s:'main' },
+  { f:'P_ReadyFuel',t:'T_StartFuel', s:'main' },
+  { f:'T_StartFuel',t:'P_Fueling',   s:'main' },
+  { f:'P_Fueling',  t:'T_EndFuel',   s:'main' },
+  { f:'T_EndFuel',  t:'P_FuelDone',  s:'main' },
+  { f:'P_ReadyCat', t:'T_StartCat',  s:'main' },
+  { f:'T_StartCat', t:'P_Catering',  s:'main' },
+  { f:'P_Catering', t:'T_EndCat',    s:'main' },
+  { f:'T_EndCat',   t:'P_CatDone',   s:'main' },
+  { f:'P_FuelDone', t:'T_Join',      s:'main' },
+  { f:'P_CatDone',  t:'T_Join',      s:'main' },
+  { f:'T_Join',     t:'P_GHDone',    s:'main' },
+  { f:'P_GHDone',   t:'T_Board',     s:'main' },
+  { f:'T_Board',    t:'P_Boarding',  s:'main' },
+  { f:'P_Boarding', t:'T_Pushback',  s:'main' },
+  { f:'T_Pushback', t:'P_Departing', s:'main' },
+  { f:'P_Departing',t:'T_Takeoff',   s:'main' },
+  { f:'T_Takeoff',  t:'P_Done',      s:'main' },
+
+  // Runway (orange)
+  { f:'P_Runway',   t:'T_Land',      s:'P_Runway', k:'use' },
+  { f:'T_Dock',     t:'P_Runway',    s:'P_Runway', k:'ret' },
+  { f:'P_Runway',   t:'T_Takeoff',   s:'P_Runway', k:'use' },
+  { f:'T_Takeoff',  t:'P_Runway',    s:'P_Runway', k:'ret' },
+
+  // Bay (teal)
+  { f:'P_Bay',      t:'T_Dock',      s:'P_Bay',    k:'use' },
+  { f:'T_Pushback', t:'P_Bay',       s:'P_Bay',    k:'ret' },
+
+  // FuelTruck (amber)
+  { f:'P_FuelTruck',    t:'T_StartFuel', s:'P_FuelTruck', k:'use' },
+  { f:'T_EndFuel',      t:'P_FuelTruck', s:'P_FuelTruck', k:'ret' },
+
+  // CateringTruck (green)
+  { f:'P_CateringTruck',t:'T_StartCat',  s:'P_CateringTruck', k:'use' },
+  { f:'T_EndCat',       t:'P_CateringTruck', s:'P_CateringTruck', k:'ret' },
+
+  // Apron (purple)
+  { f:'P_Apron',    t:'T_StartFuel', s:'P_Apron', k:'use' },
+  { f:'T_EndFuel',  t:'P_Apron',     s:'P_Apron', k:'ret' },
+  { f:'P_Apron',    t:'T_StartCat',  s:'P_Apron', k:'use' },
+  { f:'T_EndCat',   t:'P_Apron',     s:'P_Apron', k:'ret' },
+
+  // GSEPermit (pink)
+  { f:'P_GSEPermit',t:'T_StartFuel', s:'P_GSEPermit', k:'use' },
+  { f:'T_EndFuel',  t:'P_GSEPermit', s:'P_GSEPermit', k:'ret' },
+  { f:'P_GSEPermit',t:'T_StartCat',  s:'P_GSEPermit', k:'use' },
+  { f:'T_EndCat',   t:'P_GSEPermit', s:'P_GSEPermit', k:'ret' },
+];
+
+// ── GEOMETRY ──
+function edgePt(id, tx, ty) {
+  const n = N[id];
+  const dx = tx - n.x, dy = ty - n.y;
+  const d = Math.hypot(dx, dy) || 1;
+  const ux = dx/d, uy = dy/d;
+  if (n.type === 'place') {
+    return [n.x + ux*PR, n.y + uy*PR];
+  }
+  const hw = TW/2+1, hh = TH/2+1;
+  const t = Math.min(
+    Math.abs(ux)>1e-4 ? hw/Math.abs(ux) : 1e9,
+    Math.abs(uy)>1e-4 ? hh/Math.abs(uy) : 1e9
+  );
+  return [n.x + ux*t, n.y + uy*t];
+}
+
+// ── BACKGROUND ──
+svg.appendChild(el('rect',{x:0,y:0,width:W,height:H,fill:'#f8fbff'}));
+
+// Fuel lane band
+svg.appendChild(el('rect',{x:730,y:FY-58,width:590,height:118,
+  fill:'#dbeafe',rx:10,opacity:0.35}));
+svg.appendChild(el('text',{x:740,y:FY-40,'font-size':10,fill:'#1d4ed8','font-weight':'bold',opacity:0.7},
+  '⛽ Fueling Lane'));
+
+// Catering lane band
+svg.appendChild(el('rect',{x:730,y:CY-58,width:590,height:118,
+  fill:'#dcfce7',rx:10,opacity:0.35}));
+svg.appendChild(el('text',{x:740,y:CY+52,'font-size':10,fill:'#15803d','font-weight':'bold',opacity:0.7},
+  '🍽 Catering Lane'));
+
+// Main lane guide
+svg.appendChild(el('line',{x1:30,y1:MY,x2:2200,y2:MY,
+  stroke:'#bfdbfe','stroke-width':1.2,'stroke-dasharray':'4,8',opacity:0.5}));
+
+// Ground handling bracket (very subtle)
+{
+  const bx1=730, bx2=1320, bt=FY-62, bb=CY+62;
+  const bgrp = el('g',{opacity:0.15});
+  [[bx1,bt,bx2,bt],[bx1,bb,bx2,bb],[bx1,bt,bx1,bb],[bx2,bt,bx2,bb]].forEach(([x1,y1,x2,y2])=>{
+    bgrp.appendChild(el('line',{x1,y1,x2,y2,stroke:'#64748b','stroke-width':1.2}));
+  });
+  svg.appendChild(bgrp);
+  svg.appendChild(el('text',{
+    x:(bx1+bx2)/2,y:bb+16,'text-anchor':'middle',
+    'font-size':9.5,fill:'#94a3b8'
+  },'AND-parallel (Ground Handling)'));
+}
+
+// ── STEP LABELS ──
+const STEPS = [
+  [82,  '① Ready'],   [206,  '② Land'],  [330, '③ OnRwy'],
+  [451, '④ Dock'],    [572,  '⑤ Docked'], [680, '⑥ Fork'],
+  [903, '⑦ Grd.Hdl'], [1358, '⑧ Join'],  [1468,'⑨ GHDone'],
+  [1569,'⑩ Board'],   [1775, '⑪ Push'],  [1990,'⑫ Takeoff'],
+  [2155,'⑬ Done'],
+];
+for (const [x, lbl] of STEPS) {
+  svg.appendChild(el('line',{x1:x,y1:0,x2:x,y2:H,
+    stroke:'#e2e8f0','stroke-width':0.5,'stroke-dasharray':'2,8'}));
+  svg.appendChild(el('text',{x,y:16,'text-anchor':'middle',
+    'font-size':9,fill:'#94a3b8','font-family':'monospace'},lbl));
+}
+
+// ── DRAW ARCS ──
+const arcLayer = el('g');
+svg.appendChild(arcLayer);
+
+// For arcs that share the same source→target pair, add small offset
+const pairCount = {};
+for (const a of ARCS) {
+  const k = `${a.f}|${a.t}`;
+  pairCount[k] = (pairCount[k]||0) + 1;
+}
+const pairIdx = {};
+
+for (const arc of ARCS) {
+  const fn = N[arc.f], tn = N[arc.t];
+  if (!fn || !tn) continue;
+
+  const [x1,y1] = edgePt(arc.f, tn.x, tn.y);
+  const [x2,y2] = edgePt(arc.t, fn.x, fn.y);
+
+  if (arc.s === 'main') {
+    arcLayer.appendChild(el('path',{
+      d:`M${x1.toFixed(1)},${y1.toFixed(1)} L${x2.toFixed(1)},${y2.toFixed(1)}`,
+      stroke:'#1d4ed8','stroke-width':2,fill:'none','marker-end':'url(#m-main)'
+    }));
+  } else {
+    const rc = RES_COLORS[arc.s];
+    const color = rc.arc;
+    const mkr = `url(#mu-${arc.s})`;
+    const isDash = arc.k === 'ret' ? '3,3' : '6,3';
+    const sw = arc.k === 'ret' ? 1.5 : 1.8;
+
+    // Compute bezier control point
+    // Strategy: slight perpendicular offset so use/return arcs
+    // don't perfectly overlap on the same route
+    const dx = x2-x1, dy = y2-y1;
+    const len = Math.hypot(dx,dy) || 1;
+    const ux = dx/len, uy = dy/len;
+
+    // Perpendicular: rotate 90°
+    const perpX = -uy, perpY = ux;
+
+    // For "use" arcs: curve slightly one side
+    // For "ret" arcs: curve slightly the other side
+    // Offset based on arc kind
+    const side = arc.k === 'use' ? 1 : -1;
+
+    // Check if another arc travels the same route (parallel offset needed)
+    const k = `${arc.f}|${arc.t}`;
+    pairIdx[k] = (pairIdx[k]||0);
+    const idx = pairIdx[k]++;
+    const extraOff = idx * 12;
+
+    // Only curve if arcs might overlap
+    const baseOff = 18 + extraOff;
+    const cpX = (x1+x2)/2 + perpX * baseOff * side;
+    const cpY = (y1+y2)/2 + perpY * baseOff * side;
+
+    // For long arcs (Runway, Bay) — use more pronounced curve
+    const isLong = len > 400;
+    let pathD;
+    if (isLong) {
+      // Route along top or bottom edge
+      const routeY = fn.y < MY ? 15 : H - 15;
+      // Use cubic bezier: go to top/bottom, travel horizontal, come back
+      const cp1x = x1, cp1y = routeY;
+      const cp2x = x2, cp2y = routeY;
+      pathD = `M${x1.toFixed(1)},${y1.toFixed(1)} C${cp1x},${cp1y} ${cp2x},${cp2y} ${x2.toFixed(1)},${y2.toFixed(1)}`;
+    } else {
+      pathD = `M${x1.toFixed(1)},${y1.toFixed(1)} Q${cpX.toFixed(1)},${cpY.toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}`;
+    }
+
+    arcLayer.appendChild(el('path',{
+      d: pathD,
+      stroke:color,'stroke-width':sw,'stroke-dasharray':isDash,
+      fill:'none',opacity:0.85,'marker-end':mkr
+    }));
+  }
+}
+
+// ── DRAW NODES ──
+const nodeLayer = el('g');
+svg.appendChild(nodeLayer);
+
+// Short label helper
+function shortName(id) {
+  return id.replace(/^[PT]_(A_)?/, '');
+}
+// Label position: prefer above for fuel lane, below for catering, above for main
+function lblSide(n) {
+  if (n.y <= FY + 10) return 'above';
+  if (n.y >= CY - 10) return 'below';
+  if (n.res) return 'right'; // center resources
+  return 'above'; // main lane
+}
+
+for (const [id, n] of Object.entries(N)) {
+  const g = el('g',{id:`nd-${id}`,filter:'url(#sh)'});
+
+  if (n.type === 'place') {
+    let fc, bc;
+    if (n.res) {
+      fc = RES_COLORS[id].fill;
+      bc = RES_COLORS[id].stroke;
+    } else {
+      fc = '#dbeafe'; bc = '#1d4ed8';
+    }
+
+    g.appendChild(el('circle',{cx:n.x,cy:n.y,r:PR,fill:fc,stroke:bc,
+      'stroke-width': n.res ? 2.5 : 2}));
+
+    // Tokens
+    if (n.marking===1) {
+      g.appendChild(el('circle',{cx:n.x,cy:n.y,r:6,fill:'#111'}));
+    } else if (n.marking===2) {
+      g.appendChild(el('circle',{cx:n.x-7,cy:n.y,r:5,fill:'#111'}));
+      g.appendChild(el('circle',{cx:n.x+7,cy:n.y,r:5,fill:'#111'}));
+    }
+
+    // Label
+    const side = lblSide(n);
+    const sn = shortName(id);
+    let lx = n.x, ly, anchor = 'middle';
+    if (side === 'above') { ly = n.y - PR - 7; }
+    else if (side === 'below') { ly = n.y + PR + 16; }
+    else { lx = n.x + PR + 7; ly = n.y + 4; anchor = 'start'; }
+
+    g.appendChild(el('text',{x:lx,y:ly,'text-anchor':anchor,
+      'font-size':10,fill:bc,'font-weight':'bold'},sn));
+
+    // Marking annotation for shared resources with >1 token
+    if (n.res && n.marking > 1) {
+      const my2 = side === 'above' ? ly - 12 : side === 'below' ? ly + 14 : ly + 14;
+      const mx2 = lx;
+      g.appendChild(el('text',{x:mx2,y:my2,'text-anchor':anchor,
+        'font-size':9,fill:'#6b7280'},`(${n.marking} tokens)`));
+    }
+
+  } else {
+    // Transition
+    const hw=TW/2, hh=TH/2;
+    g.appendChild(el('rect',{x:n.x-hw,y:n.y-hh,width:TW,height:TH,
+      fill:'#fef9c3',stroke:'#854d0e','stroke-width':2,rx:3}));
+
+    const sn = shortName(id);
+    const side = lblSide(n);
+    let ly = side === 'below' ? n.y + hh + 14 : n.y - hh - 7;
+
+    g.appendChild(el('text',{x:n.x,y:ly,'text-anchor':'middle',
+      'font-size':10,fill:'#713f12','font-weight':'bold'},sn));
+
+    // Mark AND-Fork / AND-Join inside the box
+    if (sn === 'Fork' || sn === 'Join') {
+      g.appendChild(el('text',{x:n.x,y:n.y+4,'text-anchor':'middle',
+        'font-size':8,fill:'#92400e','font-style':'italic'},'AND'));
+    }
+  }
+
+  nodeLayer.appendChild(g);
+}
+
+// ── RESOURCE LEGEND (inline labels near each resource node) ──
+// Arc-type mini legend near shared resource panel area
+const lix = 1990, liy = 590;
+svg.appendChild(el('rect',{x:lix-8,y:liy-16,width:235,height:64,
+  fill:'white',stroke:'#e2e8f0','stroke-width':1,rx:6,opacity:0.95}));
+svg.appendChild(el('text',{x:lix,y:liy,
+  'font-size':10,fill:'#374151','font-weight':'bold'},'Arc types:'));
+[
+  ['─ ─ ─ ▶','#7e22ce','use resource (Place→Transition)'],
+  ['· · · ▶','#059669','return resource (Transition→Place)'],
+].forEach(([sym,c,lbl],i)=>{
+  svg.appendChild(el('text',{x:lix,y:liy+16+i*16,
+    'font-size':9,fill:c,'font-weight':'bold'},sym));
+  svg.appendChild(el('text',{x:lix+56,y:liy+16+i*16,
+    'font-size':9,fill:'#6b7280'},lbl));
+});
+
+// ── MARKING SUMMARY ──
+const mx=28,myy=H-52;
+svg.appendChild(el('rect',{x:mx-4,y:myy-14,width:590,height:48,
+  fill:'white',stroke:'#e2e8f0','stroke-width':1,rx:6,opacity:0.95}));
+svg.appendChild(el('text',{x:mx,y:myy,
+  'font-size':10,fill:'#374151','font-weight':'bold'},'Initial Marking (M₀):'));
+svg.appendChild(el('text',{x:mx,y:myy+15,
+  'font-size':9.5,fill:'#6b7280'},
+  'P_Ready=1  P_Runway=1  P_Bay=1  P_FuelTruck=1  P_CateringTruck=1'));
+svg.appendChild(el('text',{x:mx,y:myy+30,
+  'font-size':9.5,fill:'#6b7280'},
+  'P_Apron=2  P_GSEPermit=2  (all other places = 0)'));
+
+// ── FOOTER ──
+svg.appendChild(el('text',{x:W-10,y:H-6,'text-anchor':'end',
+  'font-size':9,fill:'#cbd5e1'},
+  'Single Aircraft P/T Petri Net — 13P · 11T · 42A'));
+</script>
+</body>
+</html>

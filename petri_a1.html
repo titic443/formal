@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>Petri Net — Aircraft A1</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background: #e8edf2; padding: 16px; }
+h1 { color: #1a3a5c; font-size: 16px; margin-bottom: 4px; }
+.subtitle { color: #4a5568; font-size: 12px; margin-bottom: 10px; }
+.legend {
+  display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 10px;
+  font-size: 11px; color: #333; align-items: center;
+}
+.li { display: flex; align-items: center; gap: 5px; }
+.scroll { overflow-x: auto; }
+svg { background: white; border: 1px solid #c0ccd8; border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.12); display: block; }
+</style>
+</head>
+<body>
+<h1>✈  Petri Net — Aircraft A1 Turnaround Process (Cyclic)</h1>
+<p class="subtitle">แสดง concurrent ground services: Fuel + Catering + Maintenance — ใช้ Shared Resource Pool ร่วมกัน (AND-Fork → 3 lanes → AND-Join) | หลัง Takeoff วนกลับ Ready ได้ไม่จำกัดรอบ</p>
+<div class="legend">
+  <div class="li">
+    <svg width="22" height="22"><circle cx="11" cy="11" r="9" fill="#4a90d9" stroke="#2260a0" stroke-width="1.5"/></svg>
+    Aircraft Place
+  </div>
+  <div class="li">
+    <svg width="22" height="22"><circle cx="11" cy="11" r="9" fill="#f5a623" stroke="#b07010" stroke-width="1.5"/></svg>
+    Shared Resource (pool)
+  </div>
+  <div class="li">
+    <svg width="30" height="22"><rect x="1" y="5" width="28" height="14" fill="#b0b0b0" stroke="#666" stroke-width="1.5" rx="2"/></svg>
+    Transition
+  </div>
+  <div class="li">
+    <svg width="44" height="14"><line x1="0" y1="7" x2="36" y2="7" stroke="#333" stroke-width="1.8" marker-end="url(#leg-arr)"/><defs><marker id="leg-arr" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6z" fill="#333"/></marker></defs></svg>
+    Consume arc
+  </div>
+  <div class="li">
+    <svg width="44" height="14"><line x1="0" y1="7" x2="36" y2="7" stroke="#cc2200" stroke-width="1.8" stroke-dasharray="5,3" marker-end="url(#leg-ret)"/><defs><marker id="leg-ret" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6z" fill="#cc2200"/></marker></defs></svg>
+    Return arc (คืน resource)
+  </div>
+  <div class="li">
+    <svg width="18" height="18"><circle cx="9" cy="9" r="4" fill="#222"/></svg>
+    Token (• = 1 token)
+  </div>
+  <div class="li">
+    <svg width="44" height="14"><line x1="0" y1="7" x2="36" y2="7" stroke="#6600cc" stroke-width="2.2" stroke-dasharray="8,4" marker-end="url(#leg-cyc)"/><defs><marker id="leg-cyc" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6z" fill="#6600cc"/></marker></defs></svg>
+    Cyclic arc (Takeoff → Ready วนกลับ)
+  </div>
+</div>
+
+<div class="scroll">
+<svg width="1780" height="660" viewBox="0 0 1780 660">
+<defs>
+  <!-- Arrowhead for consume arcs -->
+  <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+    <path d="M0,0 L8,3 L0,6z" fill="#333"/>
+  </marker>
+  <!-- Arrowhead for return arcs -->
+  <marker id="ret" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+    <path d="M0,0 L8,3 L0,6z" fill="#cc2200"/>
+  </marker>
+  <!-- Arrowhead for infra arcs (gray) -->
+  <marker id="arr-g" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+    <path d="M0,0 L8,3 L0,6z" fill="#888"/>
+  </marker>
+  <!-- Arrowhead for cyclic arc (purple) -->
+  <marker id="arr-cyc" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+    <path d="M0,0 L10,3.5 L0,7z" fill="#6600cc"/>
+  </marker>
+</defs>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  BACKGROUND: Lane bands                                   -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- Fuel lane band -->
+<rect x="590" y="158" width="490" height="68" rx="6" fill="#fff3e0" opacity="0.7"/>
+<text x="1075" y="174" text-anchor="end" font-size="10" fill="#e65100" font-style="italic" font-family="Arial">⛽ Fuel lane</text>
+<!-- Catering lane band -->
+<rect x="590" y="298" width="490" height="68" rx="6" fill="#e8f5e9" opacity="0.7"/>
+<text x="1075" y="314" text-anchor="end" font-size="10" fill="#2e7d32" font-style="italic" font-family="Arial">🍽 Catering lane</text>
+<!-- Maintenance lane band -->
+<rect x="590" y="438" width="490" height="68" rx="6" fill="#e3f2fd" opacity="0.7"/>
+<text x="1075" y="454" text-anchor="end" font-size="10" fill="#1565c0" font-style="italic" font-family="Arial">🔧 Maintenance lane</text>
+
+<!-- Section labels -->
+<text x="140" y="620" text-anchor="middle" font-size="11" fill="#555" font-family="Arial">Landing &amp; Docking</text>
+<rect x="20" y="625" width="240" height="1" fill="#aaa"/>
+<text x="800" y="620" text-anchor="middle" font-size="11" fill="#555" font-family="Arial">Ground Services (Parallel)</text>
+<rect x="590" y="625" width="500" height="1" fill="#aaa"/>
+<text x="1470" y="620" text-anchor="middle" font-size="11" fill="#555" font-family="Arial">Departure</text>
+<rect x="1100" y="625" width="660" height="1" fill="#aaa"/>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  ARCS — drawn first so nodes render on top               -->
+<!-- ══════════════════════════════════════════════════════════ -->
+
+<!-- ── Sect 1: Landing → Docking ── -->
+<!-- P_Ready → T_Land -->
+<line x1="87" y1="330" x2="124" y2="330" stroke="#333" stroke-width="1.8" marker-end="url(#arr)"/>
+<!-- T_Land → P_OnRunway -->
+<line x1="165" y1="330" x2="212" y2="330" stroke="#333" stroke-width="1.8" marker-end="url(#arr)"/>
+<!-- P_OnRunway → T_Dock -->
+<line x1="257" y1="330" x2="299" y2="330" stroke="#333" stroke-width="1.8" marker-end="url(#arr)"/>
+<!-- T_Dock → P_Docked -->
+<line x1="339" y1="330" x2="392" y2="330" stroke="#333" stroke-width="1.8" marker-end="url(#arr)"/>
+<!-- P_Docked → T_Fork -->
+<line x1="437" y1="330" x2="494" y2="330" stroke="#333" stroke-width="1.8" marker-end="url(#arr)"/>
+
+<!-- P_Runway(140,90) → T_Land(145,330): near-vertical -->
+<line x1="140" y1="112" x2="145" y2="316" stroke="#888" stroke-width="1.5" marker-end="url(#arr-g)"/>
+<!-- P_Bay(320,90) → T_Dock(320,330): vertical -->
+<line x1="320" y1="112" x2="320" y2="316" stroke="#888" stroke-width="1.5" marker-end="url(#arr-g)"/>
+<!-- P_Apron(465,90) → T_Fork(515,330): diagonal (consume at GSE start, not Dock) -->
+<line x1="465" y1="112" x2="515" y2="317" stroke="#888" stroke-width="1.5" marker-end="url(#arr-g)"/>
+
+<!-- T_Dock → P_Runway (RETURN, short curve) -->
+<path d="M 310,317 C 280,220 200,155 162,108" stroke="#cc2200" stroke-width="1.5" stroke-dasharray="5,3" fill="none" marker-end="url(#ret)"/>
+
+<!-- ── Sect 2: AND-Fork → 3 branches ── -->
+<!-- T_Fork(515,330) → P_ReadyFuel(615,190) -->
+<line x1="524" y1="318" x2="602" y2="207" stroke="#333" stroke-width="1.8" marker-end="url(#arr)"/>
+<!-- T_Fork(515,330) → P_ReadyCat(615,330): horizontal -->
+<line x1="535" y1="330" x2="592" y2="330" stroke="#333" stroke-width="1.8" marker-end="url(#arr)"/>
+<!-- T_Fork(515,330) → P_ReadyMaint(615,470) -->
+<line x1="524" y1="342" x2="602" y2="453" stroke="#333" stroke-width="1.8" marker-end="url(#arr)"/>
+
+<!-- ── Fuel lane ── -->
+<!-- P_ReadyFuel → T_StartFuel -->
+<line x1="637" y1="190" x2="684" y2="190" stroke="#e65100" stroke-width="1.8" marker-end="url(#arr)"/>
+<!-- P_FuelTruck(800,70) → T_StartFuel(705,190) -->
+<line x1="787" y1="88" x2="712" y2="172" stroke="#e65100" stroke-width="1.5" stroke-dasharray="3,2" marker-end="url(#arr)"/>
+<!-- T_StartFuel → P_Fueling -->
+<line x1="725" y1="190" x2="777" y2="190" stroke="#333" stroke-width="1.8" marker-end="url(#arr)"/>
+<!-- P_Fueling → T_EndFuel -->
+<line x1="822" y1="190" x2="874" y2="190" stroke="#333" stroke-width="1.8" marker-end="url(#arr)"/>
+<!-- T_EndFuel → P_FuelDone -->
+<line x1="914" y1="190" x2="967" y2="190" stroke="#333" stroke-width="1.8" marker-end="url(#arr)"/>
+<!-- T_EndFuel(895,190) → P_FuelTruck(800,70): RETURN curve -->
+<path d="M 877,178 C 860,128 825,88 818,72" stroke="#cc2200" stroke-width="1.5" stroke-dasharray="5,3" fill="none" marker-end="url(#ret)"/>
+
+<!-- ── Catering lane ── -->
+<!-- P_ReadyCat → T_StartCat -->
+<line x1="637" y1="330" x2="684" y2="330" stroke="#2e7d32" stroke-width="1.8" marker-end="url(#arr)"/>
+<!-- P_CateringTruck(615,595) → T_StartCat(705,330) -->
+<line x1="621" y1="573" x2="708" y2="350" stroke="#2e7d32" stroke-width="1.5" stroke-dasharray="3,2" marker-end="url(#arr)"/>
+<!-- T_StartCat → P_Catering -->
+<line x1="725" y1="330" x2="777" y2="330" stroke="#333" stroke-width="1.8" marker-end="url(#arr)"/>
+<!-- P_Catering → T_EndCat -->
+<line x1="822" y1="330" x2="874" y2="330" stroke="#333" stroke-width="1.8" marker-end="url(#arr)"/>
+<!-- T_EndCat → P_CatDone -->
+<line x1="914" y1="330" x2="967" y2="330" stroke="#333" stroke-width="1.8" marker-end="url(#arr)"/>
+<!-- T_EndCat(895,330) → P_CateringTruck(615,595): RETURN curve -->
+<path d="M 879,342" stroke="#cc2200"/>
+<path d="M 880,343 C 850,460 720,555 633,577" stroke="#cc2200" stroke-width="1.5" stroke-dasharray="5,3" fill="none" marker-end="url(#ret)"/>
+
+<!-- ── Maintenance lane ── -->
+<!-- P_ReadyMaint → T_StartMaint -->
+<line x1="637" y1="470" x2="684" y2="470" stroke="#1565c0" stroke-width="1.8" marker-end="url(#arr)"/>
+<!-- P_MaintCrew(990,595) → T_StartMaint(705,470) -->
+<line x1="969" y1="577" x2="727" y2="488" stroke="#1565c0" stroke-width="1.5" stroke-dasharray="3,2" marker-end="url(#arr)"/>
+<!-- T_StartMaint → P_Maintaining -->
+<line x1="725" y1="470" x2="777" y2="470" stroke="#333" stroke-width="1.8" marker-end="url(#arr)"/>
+<!-- P_Maintaining → T_EndMaint -->
+<line x1="822" y1="470" x2="874" y2="470" stroke="#333" stroke-width="1.8" marker-end="url(#arr)"/>
+<!-- T_EndMaint → P_MaintDone -->
+<line x1="914" y1="470" x2="967" y2="470" stroke="#333" stroke-width="1.8" marker-end="url(#arr)"/>
+<!-- T_EndMaint(895,470) → P_MaintCrew(990,595): RETURN short curve -->
+<path d="M 908,482 C 930,528 968,570 978,577" stroke="#cc2200" stroke-width="1.5" stroke-dasharray="5,3" fill="none" marker-end="url(#ret)"/>
+
+<!-- ── AND-Join: 3 branches → T_Join ── -->
+<!-- P_FuelDone(990,190) → T_Join(1085,330) -->
+<line x1="1002" y1="207" x2="1074" y2="317" stroke="#333" stroke-width="1.8" marker-end="url(#arr)"/>
+<!-- P_CatDone(990,330) → T_Join(1085,330): horizontal -->
+<line x1="1012" y1="330" x2="1064" y2="330" stroke="#333" stroke-width="1.8" marker-end="url(#arr)"/>
+<!-- P_MaintDone(990,470) → T_Join(1085,330) -->
+<line x1="1002" y1="453" x2="1074" y2="343" stroke="#333" stroke-width="1.8" marker-end="url(#arr)"/>
+
+<!-- ── Departure ── -->
+<!-- T_Join → P_GHDone -->
+<line x1="1105" y1="330" x2="1152" y2="330" stroke="#333" stroke-width="1.8" marker-end="url(#arr)"/>
+<!-- P_GHDone → T_Board -->
+<line x1="1197" y1="330" x2="1244" y2="330" stroke="#333" stroke-width="1.8" marker-end="url(#arr)"/>
+<!-- T_Board → P_Boarding -->
+<line x1="1284" y1="330" x2="1333" y2="330" stroke="#333" stroke-width="1.8" marker-end="url(#arr)"/>
+<!-- P_Boarding → T_Pushback -->
+<line x1="1378" y1="330" x2="1425" y2="330" stroke="#333" stroke-width="1.8" marker-end="url(#arr)"/>
+<!-- T_Pushback → P_Departing -->
+<line x1="1465" y1="330" x2="1512" y2="330" stroke="#333" stroke-width="1.8" marker-end="url(#arr)"/>
+<!-- P_Departing → T_Takeoff -->
+<line x1="1557" y1="330" x2="1606" y2="330" stroke="#333" stroke-width="1.8" marker-end="url(#arr)"/>
+<!-- T_Takeoff → P_A1_Ready: CYCLIC arc routed through bottom -->
+<path d="M 1625,356 C 1625,590 65,590 65,352" stroke="#6600cc" stroke-width="2.2" stroke-dasharray="8,4" fill="none" marker-end="url(#arr-cyc)"/>
+
+<!-- ── Long arcs through top of diagram ── -->
+<!-- P_Runway(140,90) → T_Takeoff(1625,330): black, routed through y=20 -->
+<path d="M 140,68 C 200,20 1560,20 1625,317" stroke="#888" stroke-width="1.5" fill="none" marker-end="url(#arr-g)"/>
+<!-- T_Takeoff(1625,330) → P_Runway(140,90): red return, through y=8 -->
+<path d="M 1625,317 C 1560,8 200,8 162,68" stroke="#cc2200" stroke-width="1.5" stroke-dasharray="5,3" fill="none" marker-end="url(#ret)"/>
+<!-- T_Pushback(1445,330) → P_Bay(320,90): red return, through y=32 -->
+<path d="M 1445,317 C 1380,32 380,32 320,68" stroke="#cc2200" stroke-width="1.5" stroke-dasharray="5,3" fill="none" marker-end="url(#ret)"/>
+<!-- T_Board(1265,330) → P_Apron(465,90): red return, through y=58 -->
+<path d="M 1265,317 C 1200,58 520,58 465,68" stroke="#cc2200" stroke-width="1.5" stroke-dasharray="5,3" fill="none" marker-end="url(#ret)"/>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  NODES — drawn on top of arcs                            -->
+<!-- ══════════════════════════════════════════════════════════ -->
+
+<!-- ── SHARED RESOURCE PLACES (orange, r=20) ── -->
+
+<!-- P_Runway -->
+<circle cx="140" cy="90" r="20" fill="#f5a623" stroke="#b07010" stroke-width="2"/>
+<circle cx="140" cy="90" r="4" fill="#222"/>
+<text x="140" y="86" text-anchor="middle" font-size="9" font-weight="bold" fill="#5a3000" font-family="Arial">P_Runway</text>
+<text x="140" y="97" text-anchor="middle" font-size="9" fill="#5a3000" font-family="Arial">[1]</text>
+
+<!-- P_Bay -->
+<circle cx="320" cy="90" r="20" fill="#f5a623" stroke="#b07010" stroke-width="2"/>
+<circle cx="308" cy="90" r="4" fill="#222"/>
+<circle cx="320" cy="90" r="4" fill="#222"/>
+<circle cx="332" cy="90" r="4" fill="#222"/>
+<text x="320" y="86" text-anchor="middle" font-size="9" font-weight="bold" fill="#5a3000" font-family="Arial">P_Bay</text>
+<text x="320" y="97" text-anchor="middle" font-size="9" fill="#5a3000" font-family="Arial">[3]</text>
+
+<!-- P_Apron -->
+<circle cx="465" cy="90" r="20" fill="#f5a623" stroke="#b07010" stroke-width="2"/>
+<circle cx="457" cy="90" r="4" fill="#222"/>
+<circle cx="473" cy="90" r="4" fill="#222"/>
+<text x="465" y="86" text-anchor="middle" font-size="9" font-weight="bold" fill="#5a3000" font-family="Arial">P_Apron</text>
+<text x="465" y="97" text-anchor="middle" font-size="9" fill="#5a3000" font-family="Arial">[2]</text>
+
+<!-- P_FuelTruck (above fuel lane) -->
+<circle cx="800" cy="70" r="20" fill="#ffcc44" stroke="#b07010" stroke-width="2"/>
+<circle cx="800" cy="70" r="4" fill="#222"/>
+<text x="800" y="66" text-anchor="middle" font-size="9" font-weight="bold" fill="#5a3000" font-family="Arial">FuelTruck</text>
+<text x="800" y="77" text-anchor="middle" font-size="9" fill="#5a3000" font-family="Arial">[1] pool</text>
+
+<!-- P_CateringTruck (below catering) -->
+<circle cx="615" cy="595" r="20" fill="#aed56e" stroke="#558830" stroke-width="2"/>
+<circle cx="615" cy="595" r="4" fill="#222"/>
+<text x="615" y="591" text-anchor="middle" font-size="9" font-weight="bold" fill="#2a5000" font-family="Arial">CatTruck</text>
+<text x="615" y="602" text-anchor="middle" font-size="9" fill="#2a5000" font-family="Arial">[1] pool</text>
+
+<!-- P_MaintCrew (below maintenance) -->
+<circle cx="990" cy="595" r="20" fill="#82c5f0" stroke="#1565c0" stroke-width="2"/>
+<circle cx="990" cy="595" r="4" fill="#222"/>
+<text x="990" y="591" text-anchor="middle" font-size="9" font-weight="bold" fill="#0a3070" font-family="Arial">MaintCrew</text>
+<text x="990" y="602" text-anchor="middle" font-size="9" fill="#0a3070" font-family="Arial">[1] pool</text>
+
+<!-- ── AIRCRAFT PLACES (blue, r=22) ── -->
+<!-- Main spine places -->
+
+<!-- P_A1_Ready -->
+<circle cx="65" cy="330" r="22" fill="#4a90d9" stroke="#2260a0" stroke-width="2"/>
+<circle cx="65" cy="330" r="5" fill="#fff"/>
+<text x="65" y="366" text-anchor="middle" font-size="10" fill="#1a3a6c" font-family="Arial">P_A1</text>
+<text x="65" y="377" text-anchor="middle" font-size="10" fill="#1a3a6c" font-family="Arial">Ready</text>
+
+<!-- P_A1_OnRunway -->
+<circle cx="235" cy="330" r="22" fill="#4a90d9" stroke="#2260a0" stroke-width="2"/>
+<text x="235" y="366" text-anchor="middle" font-size="10" fill="#1a3a6c" font-family="Arial">On</text>
+<text x="235" y="377" text-anchor="middle" font-size="10" fill="#1a3a6c" font-family="Arial">Runway</text>
+
+<!-- P_A1_Docked -->
+<circle cx="415" cy="330" r="22" fill="#4a90d9" stroke="#2260a0" stroke-width="2"/>
+<text x="415" y="366" text-anchor="middle" font-size="10" fill="#1a3a6c" font-family="Arial">Docked</text>
+
+<!-- Fuel lane places -->
+<!-- P_A1_ReadyFuel -->
+<circle cx="615" cy="190" r="22" fill="#ffdcb0" stroke="#c06010" stroke-width="1.8"/>
+<text x="615" y="226" text-anchor="middle" font-size="10" fill="#7a3800" font-family="Arial">Ready</text>
+<text x="615" y="237" text-anchor="middle" font-size="10" fill="#7a3800" font-family="Arial">Fuel</text>
+
+<!-- P_A1_Fueling -->
+<circle cx="800" cy="190" r="22" fill="#ffdcb0" stroke="#c06010" stroke-width="1.8"/>
+<text x="800" y="226" text-anchor="middle" font-size="10" fill="#7a3800" font-family="Arial">Fueling</text>
+
+<!-- P_A1_FuelDone -->
+<circle cx="990" cy="190" r="22" fill="#ffdcb0" stroke="#c06010" stroke-width="1.8"/>
+<text x="990" y="226" text-anchor="middle" font-size="10" fill="#7a3800" font-family="Arial">Fuel</text>
+<text x="990" y="237" text-anchor="middle" font-size="10" fill="#7a3800" font-family="Arial">Done ✓</text>
+
+<!-- Catering lane places -->
+<!-- P_A1_ReadyCat -->
+<circle cx="615" cy="330" r="22" fill="#c8e6c9" stroke="#2e7d32" stroke-width="1.8"/>
+<text x="615" y="366" text-anchor="middle" font-size="10" fill="#1b5e20" font-family="Arial">Ready</text>
+<text x="615" y="377" text-anchor="middle" font-size="10" fill="#1b5e20" font-family="Arial">Cat</text>
+
+<!-- P_A1_Catering -->
+<circle cx="800" cy="330" r="22" fill="#c8e6c9" stroke="#2e7d32" stroke-width="1.8"/>
+<text x="800" y="366" text-anchor="middle" font-size="10" fill="#1b5e20" font-family="Arial">Catering</text>
+
+<!-- P_A1_CatDone -->
+<circle cx="990" cy="330" r="22" fill="#c8e6c9" stroke="#2e7d32" stroke-width="1.8"/>
+<text x="990" y="366" text-anchor="middle" font-size="10" fill="#1b5e20" font-family="Arial">Cat</text>
+<text x="990" y="377" text-anchor="middle" font-size="10" fill="#1b5e20" font-family="Arial">Done ✓</text>
+
+<!-- Maintenance lane places -->
+<!-- P_A1_ReadyMaint -->
+<circle cx="615" cy="470" r="22" fill="#bbdefb" stroke="#1565c0" stroke-width="1.8"/>
+<text x="615" y="506" text-anchor="middle" font-size="10" fill="#0d47a1" font-family="Arial">Ready</text>
+<text x="615" y="517" text-anchor="middle" font-size="10" fill="#0d47a1" font-family="Arial">Maint</text>
+
+<!-- P_A1_Maintaining -->
+<circle cx="800" cy="470" r="22" fill="#bbdefb" stroke="#1565c0" stroke-width="1.8"/>
+<text x="800" y="506" text-anchor="middle" font-size="10" fill="#0d47a1" font-family="Arial">Main-</text>
+<text x="800" y="517" text-anchor="middle" font-size="10" fill="#0d47a1" font-family="Arial">taining</text>
+
+<!-- P_A1_MaintDone -->
+<circle cx="990" cy="470" r="22" fill="#bbdefb" stroke="#1565c0" stroke-width="1.8"/>
+<text x="990" y="506" text-anchor="middle" font-size="10" fill="#0d47a1" font-family="Arial">Maint</text>
+<text x="990" y="517" text-anchor="middle" font-size="10" fill="#0d47a1" font-family="Arial">Done ✓</text>
+
+<!-- Departure places -->
+<!-- P_A1_GHDone -->
+<circle cx="1175" cy="330" r="22" fill="#e1bee7" stroke="#6a1b9a" stroke-width="2"/>
+<text x="1175" y="366" text-anchor="middle" font-size="10" fill="#4a0072" font-family="Arial">GH</text>
+<text x="1175" y="377" text-anchor="middle" font-size="10" fill="#4a0072" font-family="Arial">Done ✓</text>
+
+<!-- P_A1_Boarding -->
+<circle cx="1355" cy="330" r="22" fill="#4a90d9" stroke="#2260a0" stroke-width="2"/>
+<text x="1355" y="366" text-anchor="middle" font-size="10" fill="#1a3a6c" font-family="Arial">Boarding</text>
+
+<!-- P_A1_Departing -->
+<circle cx="1535" cy="330" r="22" fill="#4a90d9" stroke="#2260a0" stroke-width="2"/>
+<text x="1535" y="366" text-anchor="middle" font-size="10" fill="#1a3a6c" font-family="Arial">Departing</text>
+
+<!-- (P_A1_Done removed — cyclic model) -->
+
+<!-- ── TRANSITIONS (gray rectangles, w=40, h=26) ── -->
+
+<!-- T_A1_Land -->
+<rect x="125" y="317" width="40" height="26" fill="#a0a0a0" stroke="#555" stroke-width="1.5" rx="3"/>
+<text x="145" y="308" text-anchor="middle" font-size="10" fill="#333" font-family="Arial">T_Land</text>
+
+<!-- T_A1_Dock -->
+<rect x="300" y="317" width="40" height="26" fill="#a0a0a0" stroke="#555" stroke-width="1.5" rx="3"/>
+<text x="320" y="308" text-anchor="middle" font-size="10" fill="#333" font-family="Arial">T_Dock</text>
+
+<!-- T_A1_Fork — AND-fork: double bar -->
+<rect x="495" y="317" width="40" height="26" fill="#555" stroke="#222" stroke-width="2" rx="3"/>
+<line x1="495" y1="323" x2="535" y2="323" stroke="#ccc" stroke-width="1"/>
+<text x="515" y="308" text-anchor="middle" font-size="10" font-weight="bold" fill="#fff" font-family="Arial">AND</text>
+<text x="515" y="350" text-anchor="middle" font-size="9" fill="#333" font-family="Arial">T_Fork</text>
+
+<!-- T_A1_StartFuel -->
+<rect x="685" y="177" width="40" height="26" fill="#c07020" stroke="#804000" stroke-width="1.5" rx="3"/>
+<text x="705" y="170" text-anchor="middle" font-size="9" fill="#804000" font-family="Arial">StartFuel</text>
+
+<!-- T_A1_EndFuel -->
+<rect x="875" y="177" width="40" height="26" fill="#c07020" stroke="#804000" stroke-width="1.5" rx="3"/>
+<text x="895" y="170" text-anchor="middle" font-size="9" fill="#804000" font-family="Arial">EndFuel</text>
+
+<!-- T_A1_StartCat -->
+<rect x="685" y="317" width="40" height="26" fill="#3a8040" stroke="#1b5e20" stroke-width="1.5" rx="3"/>
+<text x="705" y="310" text-anchor="middle" font-size="9" fill="#1b5e20" font-family="Arial">StartCat</text>
+
+<!-- T_A1_EndCat -->
+<rect x="875" y="317" width="40" height="26" fill="#3a8040" stroke="#1b5e20" stroke-width="1.5" rx="3"/>
+<text x="895" y="310" text-anchor="middle" font-size="9" fill="#1b5e20" font-family="Arial">EndCat</text>
+
+<!-- T_A1_StartMaint -->
+<rect x="685" y="457" width="40" height="26" fill="#1a60b0" stroke="#0d47a1" stroke-width="1.5" rx="3"/>
+<text x="705" y="450" text-anchor="middle" font-size="9" fill="#0d47a1" font-family="Arial">StartMaint</text>
+
+<!-- T_A1_EndMaint -->
+<rect x="875" y="457" width="40" height="26" fill="#1a60b0" stroke="#0d47a1" stroke-width="1.5" rx="3"/>
+<text x="895" y="450" text-anchor="middle" font-size="9" fill="#0d47a1" font-family="Arial">EndMaint</text>
+
+<!-- T_A1_Join — AND-join: double bar -->
+<rect x="1065" y="317" width="40" height="26" fill="#555" stroke="#222" stroke-width="2" rx="3"/>
+<line x1="1065" y1="336" x2="1105" y2="336" stroke="#ccc" stroke-width="1"/>
+<text x="1085" y="308" text-anchor="middle" font-size="10" font-weight="bold" fill="#fff" font-family="Arial">AND</text>
+<text x="1085" y="350" text-anchor="middle" font-size="9" fill="#333" font-family="Arial">T_Join</text>
+
+<!-- T_A1_Board -->
+<rect x="1245" y="317" width="40" height="26" fill="#a0a0a0" stroke="#555" stroke-width="1.5" rx="3"/>
+<text x="1265" y="308" text-anchor="middle" font-size="10" fill="#333" font-family="Arial">T_Board</text>
+
+<!-- T_A1_Pushback -->
+<rect x="1425" y="317" width="40" height="26" fill="#a0a0a0" stroke="#555" stroke-width="1.5" rx="3"/>
+<text x="1445" y="308" text-anchor="middle" font-size="10" fill="#333" font-family="Arial">T_Pushback</text>
+
+<!-- T_A1_Takeoff -->
+<rect x="1606" y="317" width="40" height="26" fill="#a0a0a0" stroke="#555" stroke-width="1.5" rx="3"/>
+<text x="1626" y="308" text-anchor="middle" font-size="10" fill="#333" font-family="Arial">T_Takeoff</text>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  ANNOTATIONS                                             -->
+<!-- ══════════════════════════════════════════════════════════ -->
+
+<!-- Bay note -->
+<rect x="255" y="118" width="128" height="28" rx="4" fill="#fff3cd" stroke="#b07010" stroke-width="1"/>
+<text x="319" y="130" text-anchor="middle" font-size="9" fill="#5a3000" font-family="Arial" font-weight="bold">P_Bay [3] — 3 ลำพร้อมกัน</text>
+<text x="319" y="141" text-anchor="middle" font-size="9" fill="#5a3000" font-family="Arial">Dock → Pushback</text>
+<!-- Apron note -->
+<rect x="392" y="118" width="152" height="28" rx="4" fill="#fff8e1" stroke="#e6ac00" stroke-width="1"/>
+<text x="468" y="130" text-anchor="middle" font-size="9" fill="#7a5c00" font-family="Arial" font-weight="bold">P_Apron [2] — GSE 2 ลำพร้อมกัน</text>
+<text x="468" y="141" text-anchor="middle" font-size="9" fill="#7a5c00" font-family="Arial">Fork → Board</text>
+
+<!-- Resource pool annotation (right side) -->
+<rect x="1110" y="170" width="150" height="58" rx="5" fill="#fff8e1" stroke="#e6ac00" stroke-width="1"/>
+<text x="1185" y="186" text-anchor="middle" font-size="10" fill="#7a5c00" font-family="Arial">เมื่อ EndX fire:</text>
+<text x="1185" y="200" text-anchor="middle" font-size="10" fill="#cc2200" font-family="Arial">token คืน pool ทันที</text>
+<text x="1185" y="214" text-anchor="middle" font-size="10" fill="#555" font-family="Arial">→ A2/A3 รับไปได้เลย</text>
+
+<!-- Token in P_A1_Ready label -->
+<text x="65" y="334" text-anchor="middle" font-size="14" fill="#fff" font-family="Arial">●</text>
+<text x="30" y="334" text-anchor="middle" font-size="10" fill="#333" font-family="Arial" font-style="italic">1 token</text>
+
+<!-- Cyclic arc label (mid-bottom of the arc) -->
+<rect x="790" y="596" width="200" height="32" rx="6" fill="#f0e6ff" stroke="#6600cc" stroke-width="1.5"/>
+<text x="890" y="611" text-anchor="middle" font-size="11" font-weight="bold" fill="#4400aa" font-family="Arial">↺  CYCLIC ARC</text>
+<text x="890" y="624" text-anchor="middle" font-size="10" fill="#4400aa" font-family="Arial">T_Takeoff → P_Ready (วนกลับ)</text>
+
+<!-- Remove old "Done" section label overlap -->
+<text x="1715" y="308" text-anchor="middle" font-size="10" fill="#6600cc" font-family="Arial" font-weight="bold">← วนกลับ</text>
+<text x="1715" y="320" text-anchor="middle" font-size="10" fill="#6600cc" font-family="Arial">P_Ready</text>
+
+</svg>
+</div>
+</body>
+</html>

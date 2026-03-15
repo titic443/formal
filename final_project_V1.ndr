@@ -1,0 +1,192 @@
+p 1205.0 315.0 a1_bording 0 n
+p 550.0 325.0 a1_ready 1 n
+t 605.0 325.0 a1_land n 0 w n {} ne
+p 655.0 325.0 a1_onRunway 0 n
+t 710.0 325.0 a1_dock n 0 w n {} ne
+p 760.0 325.0 a1_docked 0 n
+t 815.0 325.0 a1_fork n 0 w n {} ne
+p 855.0 280.0 a1_readyFuel 0 n
+p 855.0 375.0 a1_readyCat 0 n
+t 905.0 280.0 a1_startFuel n 0 w n {} ne
+t 905.0 375.0 a1_startCat s 0 w n {} ne
+p 950.0 280.0 a1_fueling 0 n
+p 950.0 375.0 a1_catering 0 n
+t 995.0 375.0 a1_endCat s 0 w n {} ne
+t 995.0 280.0 a1_endFuel n 0 w n {} ne
+p 1050.0 280.0 a1_fuelDone 0 n
+p 1045.0 375.0 a1_catDone 0 n
+p 1115.0 315.0 a1_GHDone 0 n
+t 1065.0 315.0 a1_join w 0 w n {} ne
+t 1165.0 315.0 a1_board n 0 w n {} ne
+t 1260.0 310.0 a1_pushback n 0 w n {} ne
+p 1310.0 310.0 a1_departing 0 n
+p 1410.0 315.0 a1_done 0 n
+t 1360.0 310.0 a1_takeOff n 0 w n {} ne
+p 1220.0 510.0 p72 0 n
+p 560.0 515.0 p73 1 n
+t 615.0 515.0 t45 n 0 w n {} ne
+p 670.0 515.0 p74 0 n
+t 720.0 515.0 t46 n 0 w n {} ne
+p 770.0 515.0 p75 0 n
+t 830.0 515.0 t47 n 0 w n {} ne
+p 865.0 475.0 p76 0 n
+p 865.0 565.0 p77 0 n
+t 920.0 475.0 t48 n 0 w n {} ne
+t 920.0 565.0 t49 s 0 w n {} ne
+p 965.0 475.0 p78 0 n
+p 965.0 565.0 p79 0 n
+t 1005.0 565.0 t50 s 0 w n {} ne
+t 1005.0 475.0 t51 n 0 w n {} ne
+p 1055.0 475.0 p80 0 n
+p 1050.0 565.0 p81 0 n
+p 1125.0 510.0 p82 0 n
+t 1075.0 510.0 t52 w 0 w n {} ne
+t 1180.0 510.0 t53 n 0 w n {} ne
+t 1270.0 505.0 t54 n 0 w n {} ne
+p 1320.0 505.0 p83 0 n
+p 1420.0 510.0 p84 0 n
+t 1370.0 505.0 t55 n 0 w n {} ne
+p 1215.0 690.0 p85 0 n
+p 555.0 700.0 p86 1 n
+t 610.0 700.0 t56 n 0 w n {} ne
+p 665.0 700.0 p87 0 n
+t 720.0 700.0 t57 n 0 w n {} ne
+p 765.0 700.0 p88 0 n
+t 825.0 700.0 t58 n 0 w n {} ne
+p 865.0 655.0 p89 0 n
+p 865.0 750.0 p90 0 n
+t 915.0 655.0 t59 n 0 w n {} ne
+t 915.0 750.0 t60 s 0 w n {} ne
+p 960.0 655.0 p91 0 n
+p 960.0 750.0 p92 0 n
+t 1000.0 750.0 t61 s 0 w n {} ne
+t 1005.0 655.0 t62 n 0 w n {} ne
+p 1050.0 655.0 p93 0 n
+p 1050.0 750.0 p94 0 n
+p 1120.0 690.0 p95 0 n
+t 1075.0 690.0 t63 w 0 w n {} ne
+t 1175.0 690.0 t64 n 0 w n {} ne
+t 1270.0 685.0 t65 n 0 w n {} ne
+p 1315.0 685.0 p96 0 n
+p 1415.0 690.0 p97 0 n
+t 1365.0 685.0 t66 n 0 w n {} ne
+p 975.0 915.0 runway 1 n
+p 985.0 160.0 appron 2 n
+p 1865.0 280.0 maintainance 1 n
+p 985.0 50.0 bay 3 n
+p 150.0 520.0 catering 1 n
+p 1740.0 445.0 fuel 1 n
+e runway t56 1 n
+e appron 0.5107231821 906.0557378 t58 0.420480046 273.4245783 1 n
+e appron 0.5195474224 808.0872478 t47 0.423530356 186.0671922 1 n
+e appron a1_fork 1 n
+e p86 t56 1 n
+e t56 p87 1 n
+e p87 t57 1 n
+e t57 p88 1 n
+e p88 t58 1 n
+e t58 p89 1 n
+e t58 p90 1 n
+e p89 t59 1 n
+e p90 t60 1 n
+e t60 p92 1 n
+e t59 p91 1 n
+e p91 t62 1 n
+e p92 t61 1 n
+e t62 p93 1 n
+e t61 p94 1 n
+e p94 t63 1 n
+e p93 t63 1 n
+e t63 p95 1 n
+e p95 t64 1 n
+e t64 p85 1 n
+e p85 t65 1 n
+e t65 p96 1 n
+e p96 t66 1 n
+e t66 p97 1 n
+e t57 runway 1 n
+e runway 0.05550862922 117.0469991 t66 0.6746630461 92.13034245 1 n
+e t66 0.6572541289 105.394497 runway 0.08480473859 113.1923142 1 n
+e t66 0.5983290721 236.3128039 p86 0.9244702196 202.2821188 1 n
+e fuel t59 1 n
+e t62 fuel 1 n
+e catering t60 1 n
+e t61 catering 1 n
+e t64 0.08745663204 396.3495932 appron 0.9944788481 778.4683673 1 n
+e t65 0.1162552886 283.270189 bay 0.9846569008 914.2450437 1 n
+e bay 0.5349748628 1000.049999 t57 0.4318723059 289.0830331 1 n
+e p73 t45 1 n
+e t45 p74 1 n
+e p74 t46 1 n
+e t46 p75 1 n
+e p75 t47 1 n
+e t47 p76 1 n
+e t47 p77 1 n
+e p76 t48 1 n
+e p77 t49 1 n
+e t49 p79 1 n
+e t48 p78 1 n
+e p78 t51 1 n
+e p79 t50 1 n
+e t51 p80 1 n
+e t50 p81 1 n
+e p81 t52 1 n
+e p80 t52 1 n
+e t52 p82 1 n
+e p82 t53 1 n
+e t53 p72 1 n
+e p72 t54 1 n
+e t54 p83 1 n
+e p83 t55 1 n
+e t55 p84 1 n
+e runway 0.5385028543 158.6190405 t45 0.6107550249 443.0079006 1 n
+e t46 0.5733218646 454.3709938 runway 0.470241325 225.9380446 1 n
+e runway 0.03059398025 607.1836625 t55 0.9437248933 248.3646509 1 n
+e t55 0.8904509261 299.1003176 runway 0.02774835395 357.4185222 1 n
+e t55 0.5983290721 236.3128039 p73 0.9244702196 202.2821188 1 n
+e fuel t48 1 n
+e t51 fuel 1 n
+e catering t49 1 n
+e t50 catering 1 n
+e t53 0.0807072336 195.6169727 appron 0.9906119955 763.327582 1 n
+e t54 0.07833785616 391.4715826 bay 0.9782272084 777.2618606 1 n
+e bay 0.5435131473 785.1624036 t46 0.4532553808 383.418831 1 n
+e bay a1_dock 1 n
+e a1_pushback bay 1 n
+e a1_board appron 1 n
+e a1_endCat catering 1 n
+e catering a1_startCat 1 n
+e a1_endFuel fuel 1 n
+e fuel a1_startFuel 1 n
+e a1_takeOff 0.5983290721 236.3128039 a1_ready 0.9244702207 202.2821189 1 n
+e a1_takeOff 0.9251105889 324.2375665 runway 0.03114869201 699.3511278 1 n
+e runway 0.009351279619 442.7640455 a1_takeOff 0.8859588509 534.4249237 1 n
+e a1_dock 0.5955263128 272.6554602 runway 0.4719773064 662.2386277 1 n
+e runway 0.5479844993 343.4938134 a1_land 0.623713061 524.690385 1 n
+e a1_takeOff a1_done 1 n
+e a1_departing a1_takeOff 1 n
+e a1_pushback a1_departing 1 n
+e a1_bording a1_pushback 1 n
+e a1_board a1_bording 1 n
+e a1_GHDone a1_board 1 n
+e a1_join a1_GHDone 1 n
+e a1_fuelDone a1_join 1 n
+e a1_catDone a1_join 1 n
+e a1_endCat a1_catDone 1 n
+e a1_endFuel a1_fuelDone 1 n
+e a1_catering a1_endCat 1 n
+e a1_fueling a1_endFuel 1 n
+e a1_startFuel a1_fueling 1 n
+e a1_startCat a1_catering 1 n
+e a1_readyCat a1_startCat 1 n
+e a1_readyFuel a1_startFuel 1 n
+e a1_fork a1_readyCat 1 n
+e a1_fork a1_readyFuel 1 n
+e a1_docked a1_fork 1 n
+e a1_dock a1_docked 1 n
+e a1_onRunway a1_dock 1 n
+e a1_land a1_onRunway 1 n
+e a1_ready a1_land 1 n
+h final_project_V1
+
+

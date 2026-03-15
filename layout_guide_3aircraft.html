@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>Layout Guide — 3 Aircraft Petri Net (nd.app)</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; padding: 20px; background: #f0f4f8; font-family: 'Segoe UI', Arial, sans-serif; }
+h1 { margin: 0 0 4px; font-size: 17px; color: #1e3a5f; }
+.sub { margin: 0 0 14px; font-size: 11.5px; color: #555; }
+.wrap { overflow: auto; background: #fff; border-radius: 10px; box-shadow: 0 2px 16px rgba(0,0,0,.12); }
+
+.key-box {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+  padding: 12px 18px; margin-bottom: 14px; font-size: 12px;
+  display: flex; flex-wrap: wrap; gap: 12px 30px;
+}
+.key-box h3 { margin: 0 0 8px; font-size: 13px; color: #1e3a5f; width: 100%; }
+.key-row { display: flex; align-items: flex-start; gap: 10px; }
+.key-num {
+  background: #1d4ed8; color: white; border-radius: 50%;
+  width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: bold; flex-shrink: 0; margin-top: 1px;
+}
+.key-num.orange { background: #d97706; }
+.key-num.green  { background: #15803d; }
+.key-num.purple { background: #7c3aed; }
+.key-num.red    { background: #dc2626; }
+</style>
+</head>
+<body>
+
+<h1>📐 Blueprint — วิธีจัดวาง 3-Aircraft Petri Net ใน nd.app</h1>
+<p class="sub">แนวคิดหลัก: วาง Shared Resource ให้ตรง x-column เดียวกับ Transition ที่ใช้มัน → เส้นเป็นแนวตั้ง ไม่ทับกัน</p>
+
+<div class="key-box">
+  <h3>🔑 หลักการจัดวาง 5 ข้อ</h3>
+  <div class="key-row">
+    <div class="key-num">1</div>
+    <div><b>P_Runway</b> → วางด้านบนสุด กึ่งกลาง ระหว่าง T_Land และ T_Takeoff<br>
+    <span style="color:#666">เส้นจาก T_Land/T_Takeoff ทั้ง 3 ลำจะวิ่งขึ้นตรงๆ แล้วแผ่ออกไปหา Runway</span></div>
+  </div>
+  <div class="key-row">
+    <div class="key-num orange">2</div>
+    <div><b>P_Bay</b> → วางด้านล่างสุด กึ่งกลาง ระหว่าง T_Dock และ T_Pushback<br>
+    <span style="color:#666">เส้นจาก T_Dock/T_Pushback วิ่งลงตรงๆ ไม่ตัดกัน</span></div>
+  </div>
+  <div class="key-row">
+    <div class="key-num green">3</div>
+    <div><b>P_FuelTruck</b> → วางเหนือ Fueling lane / <b>P_CateringTruck</b> → วางใต้ Catering lane<br>
+    <span style="color:#666">อยู่ระหว่าง T_StartFuel–T_EndFuel และ T_StartCat–T_EndCat พอดี → เส้นสั้นมาก</span></div>
+  </div>
+  <div class="key-row">
+    <div class="key-num purple">4</div>
+    <div><b>P_Apron</b> + <b>P_GSEPermit</b> → วางกลางช่องว่างระหว่าง Fuel lane และ Catering lane<br>
+    <span style="color:#666">ตรง x-column ของ T_StartFuel/T_StartCat → เส้นแนวตั้งสั้น ไม่ต้องวิ่งข้ามไปไกล</span></div>
+  </div>
+  <div class="key-row">
+    <div class="key-num red">5</div>
+    <div><b>เว้นช่องว่างระหว่างแถว</b> Aircraft ให้เพียงพอ (อย่างน้อย 150–200px)<br>
+    <span style="color:#666">เส้น shared arc จะวิ่งผ่านช่องว่างนี้โดยไม่ทับ node ใด</span></div>
+  </div>
+</div>
+
+<div class="wrap">
+  <svg id="bp" xmlns="http://www.w3.org/2000/svg"></svg>
+</div>
+
+<script>
+const W = 1900, H = 1060;
+const svg = document.getElementById('bp');
+svg.setAttribute('width', W);
+svg.setAttribute('height', H);
+const NS = 'http://www.w3.org/2000/svg';
+
+function el(tag, attrs, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k,v] of Object.entries(attrs||{})) e.setAttribute(k,v);
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+// ── CONFIG ──
+const PR = 20;   // place radius
+const TW = 38, TH = 22;  // transition half-dims
+
+// Row centers
+const ROWS = {
+  A1: 200, A2: 560, A3: 920,
+};
+const SPREAD = 80; // ±y for fuel/cat
+
+// X positions (same for all aircraft)
+const X = {
+  Ready:60, Land:168, OnRwy:282, Dock:390, Docked:498, Fork:592,
+  Rdy_Fuel:700, StartFuel:808, Fueling:916, EndFuel:1024, FuelDone:1132,
+  Rdy_Cat:700,  StartCat:808,  Catering:916,EndCat:1024, CatDone:1132,
+  Join:1232, GHDone:1326, Board:1422, Boarding:1518, Push:1614, Depart:1712, TO:1808, Done:1904,
+};
+
+// ── COLORS ──
+const C = {A1:'#1d4ed8', A2:'#d97706', A3:'#16a34a'};
+const BAND = {A1:'#eff6ff', A2:'#fffbeb', A3:'#f0fdf4'};
+const SR = { // shared resource colors
+  Runway:'#c2410c', Bay:'#0f766e',
+  FuelTruck:'#a16207', CatTruck:'#166534',
+  Apron:'#6d28d9', GSE:'#9d174d',
+};
+
+// SVG helpers
+function place(cx, cy, r, fill, stroke, sw) {
+  return el('circle', {cx, cy, r: r||PR, fill: fill||'#dbeafe', stroke: stroke||'#1d4ed8', 'stroke-width': sw||2});
+}
+function trans(cx, cy, fill, stroke) {
+  return el('rect', {x:cx-TW/2, y:cy-TH/2, width:TW, height:TH,
+    fill:fill||'#fef9c3', stroke:stroke||'#92400e', 'stroke-width':2, rx:3});
+}
+function label(x, y, txt, color, size, anchor, bold) {
+  return el('text', {x, y, 'text-anchor':anchor||'middle',
+    'font-size':size||10, fill:color||'#334155',
+    'font-weight':bold?'bold':'normal'}, txt);
+}
+function arrow(x1,y1,x2,y2,color,dash,sw) {
+  const g = el('g');
+  g.appendChild(el('line',{x1,y1,x2,y2,stroke:color||'#333',
+    'stroke-width':sw||1.5,'stroke-dasharray':dash||'none',
+    'marker-end':`url(#arr-${color?.replace('#','')||'333'})`}));
+  return g;
+}
+function path(d, color, dash, sw, opacity) {
+  return el('path',{d, stroke:color||'#333', 'stroke-width':sw||1.5,
+    'stroke-dasharray':dash||'none', fill:'none', opacity:opacity||1});
+}
+
+// ── DEFS: arrowheads ──
+const defs = el('defs');
+const arrowColors = [
+  '#1d4ed8','#d97706','#16a34a',  // aircraft
+  '#c2410c','#0f766e','#a16207','#166534','#6d28d9','#9d174d', // resources
+  '#94a3b8','#333',
+];
+arrowColors.forEach(c => {
+  const id = `arr-${c.replace('#','')}`;
+  const m = el('marker',{id, markerWidth:9, markerHeight:9,
+    refX:7, refY:4.5, orient:'auto', markerUnits:'userSpaceOnUse'});
+  m.appendChild(el('path',{d:'M0,0 L0,9 L8,4.5z', fill:c}));
+  defs.appendChild(m);
+});
+svg.appendChild(defs);
+
+// ── BACKGROUND ──
+svg.appendChild(el('rect',{x:0,y:0,width:W,height:H,fill:'#f8fbff'}));
+
+// Aircraft bands
+for (const [an, by] of Object.entries(ROWS)) {
+  svg.appendChild(el('rect',{x:20, y:by-SPREAD-26, width:1860, height:(SPREAD+26)*2,
+    fill:BAND[an], rx:8, opacity:0.7}));
+  svg.appendChild(label(38, by-SPREAD-10, `Aircraft ${an}`, C[an], 11, 'start', true));
+}
+
+// Gap zones (routing channels)
+[[ROWS.A1+SPREAD+4, ROWS.A2-SPREAD-4],
+ [ROWS.A2+SPREAD+4, ROWS.A3-SPREAD-4]].forEach(([y1,y2],i)=>{
+  svg.appendChild(el('rect',{x:20,y:y1,width:1860,height:y2-y1,
+    fill:'#f1f5f9',rx:0,opacity:0.7}));
+  svg.appendChild(label(940, (y1+y2)/2+4,
+    `← Gap ${i+1}: เส้น shared arc วิ่งผ่านช่องนี้ →`,
+    '#94a3b8', 10, 'middle'));
+});
+
+// ── VERTICAL GRID LINES (alignment guides) ──
+// Key columns
+const gridCols = [
+  [X.Land,   '#c2410c', '← T_Land\n(Runway)'],
+  [X.Dock,   '#0f766e', '← T_Dock\n(Bay)'],
+  [X.StartFuel, '#6d28d9', '← StartFuel/Cat\n(Apron, GSE)'],
+  [X.EndFuel,   '#6d28d9', '← EndFuel/Cat\n(Apron, GSE)'],
+  [X.Push,   '#0f766e', '← T_Pushback\n(Bay)'],
+  [X.TO,     '#c2410c', '← T_Takeoff\n(Runway)'],
+];
+for (const [x, col, lbl] of gridCols) {
+  svg.appendChild(el('line',{x1:x,y1:0,x2:x,y2:H,
+    stroke:col,'stroke-width':0.8,'stroke-dasharray':'4,6',opacity:0.4}));
+  svg.appendChild(label(x, H-8, lbl.split('\n')[0]+' '+lbl.split('\n')[1],
+    col, 8, 'middle'));
+}
+
+// ── DRAW AIRCRAFT FLOWS (simplified) ──
+for (const [an, by] of Object.entries(ROWS)) {
+  const col = C[an];
+  const arcColor = col.replace('#','');
+  const plFill = an==='A1'?'#dbeafe': an==='A2'?'#fef3c7':'#dcfce7';
+
+  // Helper: draw horizontal flow segment
+  function seg(x1,x2,y) {
+    svg.appendChild(el('line',{x1,y1:y,x2,y2:y,stroke:col,'stroke-width':2,
+      'marker-end':`url(#arr-${arcColor})`}));
+  }
+
+  // Fuel lane
+  const fy = by - SPREAD;
+  const cy_ = by + SPREAD;
+
+  // --- PLACES (simplified) ---
+  // Main lane places
+  [[X.Ready,'Ready',1],[X.OnRwy,'OnRwy',0],[X.Docked,'Docked',0],
+   [X.GHDone,'GHDone',0],[X.Boarding,'Boarding',0],[X.Depart,'Depart',0],[X.Done,'Done',0]
+  ].forEach(([x,name,tok])=>{
+    svg.appendChild(place(x, by, PR, plFill, col, 2));
+    if (tok) svg.appendChild(el('circle',{cx:x,cy:by,r:6,fill:'#111'}));
+    svg.appendChild(label(x, by-PR-5, name, col, 8.5, 'middle', true));
+  });
+
+  // Fuel branch places
+  [[X.Rdy_Fuel,'RdyFuel'],[X.Fueling,'Fueling'],[X.FuelDone,'FuelDone']].forEach(([x,name])=>{
+    svg.appendChild(place(x, fy, PR-2, plFill, col, 2));
+    svg.appendChild(label(x, fy-PR-4, name, col, 8, 'middle', true));
+  });
+
+  // Cat branch places
+  [[X.Rdy_Cat,'RdyCat'],[X.Catering,'Catering'],[X.CatDone,'CatDone']].forEach(([x,name])=>{
+    svg.appendChild(place(x, cy_, PR-2, plFill, col, 2));
+    svg.appendChild(label(x, cy_+PR+12, name, col, 8, 'middle', true));
+  });
+
+  // --- TRANSITIONS ---
+  [[X.Land,'Land'],[X.Dock,'Dock'],[X.Join,'Join'],
+   [X.Board,'Board'],[X.Push,'Push'],[X.TO,'TakeOff']].forEach(([x,name])=>{
+    svg.appendChild(trans(x, by, '#fffbeb', col));
+    svg.appendChild(label(x, by-TH/2-5, name, col, 8.5, 'middle', true));
+  });
+  // Fork
+  svg.appendChild(trans(X.Fork, by, '#fffbeb', col));
+  svg.appendChild(label(X.Fork, by+TH/2+12, 'Fork', col, 8.5, 'middle', true));
+  svg.appendChild(label(X.Fork, by+4, 'AND', col, 7, 'middle'));
+
+  // Fuel/Cat transitions
+  [[X.StartFuel,'StartFuel',fy],[X.EndFuel,'EndFuel',fy],
+   [X.StartCat,'StartCat',cy_],[X.EndCat,'EndCat',cy_]].forEach(([x,name,y])=>{
+    svg.appendChild(trans(x, y, '#fffbeb', col));
+    const above = y < by;
+    svg.appendChild(label(x, above ? y-TH/2-4 : y+TH/2+11, name, col, 8, 'middle', true));
+  });
+
+  // --- ARCS (main flow) ---
+  // Ready→Land→OnRwy→Dock→Docked→Fork
+  [[X.Ready+PR, X.Land-TW/2],[X.Land+TW/2, X.OnRwy-PR],
+   [X.OnRwy+PR, X.Dock-TW/2],[X.Dock+TW/2, X.Docked-PR],
+   [X.Docked+PR, X.Fork-TW/2]].forEach(([x1,x2])=>{
+    seg(x1, x2, by);
+  });
+  // Fork → ReadyFuel/ReadyCat
+  svg.appendChild(path(`M${X.Fork+TW/2},${by} C${X.Fork+60},${by} ${X.Rdy_Fuel-40},${fy} ${X.Rdy_Fuel-PR},${fy}`,col,'none',2));
+  svg.appendChild(path(`M${X.Fork+TW/2},${by} C${X.Fork+60},${by} ${X.Rdy_Cat-40},${cy_} ${X.Rdy_Cat-PR},${cy_}`,col,'none',2));
+  // Fuel branch
+  [[X.Rdy_Fuel+PR,X.StartFuel-TW/2],[X.StartFuel+TW/2,X.Fueling-PR+2],
+   [X.Fueling+PR-2,X.EndFuel-TW/2],[X.EndFuel+TW/2,X.FuelDone-PR+2]].forEach(([x1,x2])=>{
+    svg.appendChild(el('line',{x1,y1:fy,x2,y2:fy,stroke:col,'stroke-width':2,
+      'marker-end':`url(#arr-${arcColor})`}));
+  });
+  // Cat branch
+  [[X.Rdy_Cat+PR,X.StartCat-TW/2],[X.StartCat+TW/2,X.Catering-PR+2],
+   [X.Catering+PR-2,X.EndCat-TW/2],[X.EndCat+TW/2,X.CatDone-PR+2]].forEach(([x1,x2])=>{
+    svg.appendChild(el('line',{x1,y1:cy_,x2,y2:cy_,stroke:col,'stroke-width':2,
+      'marker-end':`url(#arr-${arcColor})`}));
+  });
+  // FuelDone / CatDone → Join
+  svg.appendChild(path(`M${X.FuelDone+PR-2},${fy} C${X.FuelDone+60},${fy} ${X.Join-60},${by} ${X.Join-TW/2},${by}`,col,'none',2));
+  svg.appendChild(path(`M${X.CatDone+PR-2},${cy_} C${X.CatDone+60},${cy_} ${X.Join-60},${by} ${X.Join-TW/2},${by}`,col,'none',2));
+  // Join→GHDone→Board→Boarding→Push→Depart→TO→Done
+  [[X.Join+TW/2,X.GHDone-PR],[X.GHDone+PR,X.Board-TW/2],
+   [X.Board+TW/2,X.Boarding-PR],[X.Boarding+PR,X.Push-TW/2],
+   [X.Push+TW/2,X.Depart-PR],[X.Depart+PR,X.TO-TW/2],
+   [X.TO+TW/2,X.Done-PR]].forEach(([x1,x2])=>{
+    seg(x1,x2,by);
+  });
+  // Join AND label
+  svg.appendChild(label(X.Join, by+4, 'AND', col, 7, 'middle'));
+}
+
+// ── SHARED RESOURCES ──
+
+// Compute vertical center between rows
+const midY12 = (ROWS.A1 + ROWS.A2) / 2;
+const midY23 = (ROWS.A2 + ROWS.A3) / 2;
+
+// ── P_RUNWAY (top center, between T_Land and T_Takeoff) ──
+const runwayX = (X.Land + X.TO) / 2;
+const runwayY = 46;
+svg.appendChild(place(runwayX, runwayY, PR+4, SR.Runway+'22', SR.Runway, 2.5));
+svg.appendChild(el('circle',{cx:runwayX,cy:runwayY,r:6,fill:'#111'}));
+svg.appendChild(label(runwayX, runwayY+PR+17, 'P_Runway [1]', SR.Runway, 10, 'middle', true));
+
+// Runway arcs (all 3 aircraft, T_Land and T_Takeoff)
+// Route via top corridor — stagger by aircraft index
+[['A1',0],['A2',1],['A3',2]].forEach(([an,i])=>{
+  const by = ROWS[an];
+  const channelY = 90 + i*18;
+  const col = SR.Runway;
+  const dash = an==='A2'?'6,3':an==='A3'?'3,3':'none';
+
+  // P_Runway → T_Land (use)
+  svg.appendChild(path(
+    `M${runwayX-PR-2},${runwayY} C${runwayX},${channelY} ${X.Land},${channelY} ${X.Land},${by-TH/2}`,
+    col,'6,3',1.4,0.8));
+  // T_Dock → P_Runway (return runway after dock)
+  svg.appendChild(path(
+    `M${X.Dock},${by-TH/2} C${X.Dock},${channelY+10} ${runwayX},${channelY+10} ${runwayX+PR+2},${runwayY}`,
+    col,'3,3',1.4,0.7));
+  // P_Runway → T_Takeoff (use)
+  svg.appendChild(path(
+    `M${runwayX+PR+2},${runwayY} C${runwayX},${channelY} ${X.TO},${channelY} ${X.TO},${by-TH/2}`,
+    col,'6,3',1.4,0.8));
+  // T_Takeoff → P_Runway (return)
+  svg.appendChild(path(
+    `M${X.TO+TW/2},${by} C${X.TO+40},${channelY+8} ${runwayX+40},${channelY+8} ${runwayX+PR+2},${runwayY+8}`,
+    col,'3,3',1.1,0.6));
+});
+
+// ── P_BAY (bottom center, between T_Dock and T_Pushback) ──
+const bayX = (X.Dock + X.Push) / 2;
+const bayY = H - 52;
+svg.appendChild(place(bayX, bayY, PR+4, SR.Bay+'22', SR.Bay, 2.5));
+svg.appendChild(el('circle',{cx:bayX,cy:bayY,r:6,fill:'#111'}));
+svg.appendChild(label(bayX, bayY-PR-9, 'P_Bay [1]', SR.Bay, 10, 'middle', true));
+
+[['A1',0],['A2',1],['A3',2]].forEach(([an,i])=>{
+  const by = ROWS[an];
+  const channelY = bayY - 90 - i*18;
+  const col = SR.Bay;
+  // P_Bay → T_Dock (use)
+  svg.appendChild(path(
+    `M${bayX-PR},${bayY} C${bayX},${channelY} ${X.Dock},${channelY} ${X.Dock},${by+TH/2}`,
+    col,'6,3',1.4,0.8));
+  // T_Pushback → P_Bay (return)
+  svg.appendChild(path(
+    `M${X.Push},${by+TH/2} C${X.Push},${channelY+10} ${bayX},${channelY+10} ${bayX+PR},${bayY}`,
+    col,'3,3',1.4,0.8));
+});
+
+// ── P_FUELTRUCK (above fuel lanes, center of fuel section) ──
+const ftX = (X.StartFuel + X.EndFuel) / 2;
+// Position between A1 fuel lane and top of A1 band
+const ftY_row = (by_) => by_ - SPREAD - 52; // above each fuel lane
+
+// Show FuelTruck ONCE between rows, connecting to all aircraft
+const ftY = ROWS.A1 - SPREAD - 62;
+svg.appendChild(place(ftX, ftY, PR+2, SR.FuelTruck+'22', SR.FuelTruck, 2.5));
+svg.appendChild(el('circle',{cx:ftX,cy:ftY,r:6,fill:'#111'}));
+svg.appendChild(label(ftX, ftY-PR-7, 'P_FuelTruck [1]', SR.FuelTruck, 10, 'middle', true));
+
+[['A1',0],['A2',1],['A3',2]].forEach(([an,i])=>{
+  const fy = ROWS[an] - SPREAD;
+  const col = SR.FuelTruck;
+  const offset = (i-1)*14;
+  // P_FuelTruck → T_StartFuel
+  svg.appendChild(path(
+    `M${ftX+offset},${ftY+PR+2} L${X.StartFuel+offset},${fy-TH/2}`,
+    col,'6,3',1.2,0.75));
+  // T_EndFuel → P_FuelTruck
+  svg.appendChild(path(
+    `M${X.EndFuel+offset},${fy-TH/2} C${X.EndFuel+offset},${ftY} ${ftX+offset+10},${ftY} ${ftX+PR+2},${ftY+offset/4}`,
+    col,'3,3',1.2,0.7));
+});
+
+// ── P_CATERINGTRUCK (below cat lanes) ──
+const ctX = (X.StartCat + X.EndCat) / 2;
+const ctY = ROWS.A3 + SPREAD + 62;
+svg.appendChild(place(ctX, ctY, PR+2, SR.CatTruck+'22', SR.CatTruck, 2.5));
+svg.appendChild(el('circle',{cx:ctX,cy:ctY,r:6,fill:'#111'}));
+svg.appendChild(label(ctX, ctY+PR+16, 'P_CateringTruck [1]', SR.CatTruck, 10, 'middle', true));
+
+[['A1',0],['A2',1],['A3',2]].forEach(([an,i])=>{
+  const cy_ = ROWS[an] + SPREAD;
+  const col = SR.CatTruck;
+  const offset = (i-1)*14;
+  svg.appendChild(path(
+    `M${ctX+offset},${ctY-PR-2} L${X.StartCat+offset},${cy_+TH/2}`,
+    col,'6,3',1.2,0.75));
+  svg.appendChild(path(
+    `M${X.EndCat+offset},${cy_+TH/2} C${X.EndCat+offset},${ctY} ${ctX+offset+10},${ctY} ${ctX+PR+2},${ctY-offset/4}`,
+    col,'3,3',1.2,0.7));
+});
+
+// ── P_APRON (center, between gap1 and gap2, at x=StartFuel) ──
+// Position: vertically centered, x = StartFuel column
+const apronX = X.StartFuel - 40;  // slightly left of StartFuel column
+const apronY = midY12;
+svg.appendChild(place(apronX, apronY, PR+3, SR.Apron+'22', SR.Apron, 2.5));
+svg.appendChild(el('circle',{cx:apronX-7,cy:apronY,r:4.5,fill:'#111'}));
+svg.appendChild(el('circle',{cx:apronX+7,cy:apronY,r:4.5,fill:'#111'}));
+svg.appendChild(label(apronX, apronY+PR+15, 'P_Apron [2]', SR.Apron, 10, 'middle', true));
+
+// P_GSEPERMIT (center, between gap1 and gap2, x = EndFuel column)
+const gseX = X.EndFuel + 40;
+const gseY = midY23;
+svg.appendChild(place(gseX, gseY, PR+3, SR.GSE+'22', SR.GSE, 2.5));
+svg.appendChild(el('circle',{cx:gseX-7,cy:gseY,r:4.5,fill:'#111'}));
+svg.appendChild(el('circle',{cx:gseX+7,cy:gseY,r:4.5,fill:'#111'}));
+svg.appendChild(label(gseX, gseY+PR+15, 'P_GSEPermit [2]', SR.GSE, 10, 'middle', true));
+
+// Apron + GSEPermit arcs (short, mostly straight or slight curve)
+for (const [an, i] of [['A1',0],['A2',1],['A3',2]]) {
+  const fy = ROWS[an] - SPREAD;
+  const cy_ = ROWS[an] + SPREAD;
+  const off = (i-1)*10;
+
+  // Apron → StartFuel/StartCat, EndFuel/EndCat → Apron
+  svg.appendChild(path(`M${apronX+off},${apronY-PR-2} L${X.StartFuel+off},${fy+TH/2}`,SR.Apron,'6,3',1.2,0.75));
+  svg.appendChild(path(`M${apronX+off},${apronY+PR+2} L${X.StartCat+off},${cy_-TH/2}`,SR.Apron,'6,3',1.2,0.75));
+  svg.appendChild(path(`M${X.EndFuel+off},${fy+TH/2} L${apronX+off+12},${apronY-PR}`,SR.Apron,'3,3',1.1,0.65));
+  svg.appendChild(path(`M${X.EndCat+off},${cy_-TH/2} L${apronX+off+12},${apronY+PR}`,SR.Apron,'3,3',1.1,0.65));
+
+  // GSE → StartFuel/StartCat, EndFuel/EndCat → GSE
+  svg.appendChild(path(`M${gseX+off},${gseY-PR-2} L${X.StartFuel+off+5},${fy+TH/2}`,SR.GSE,'6,3',1.2,0.75));
+  svg.appendChild(path(`M${gseX+off},${gseY+PR+2} L${X.StartCat+off+5},${cy_-TH/2}`,SR.GSE,'6,3',1.2,0.75));
+  svg.appendChild(path(`M${X.EndFuel+off+6},${fy+TH/2} L${gseX+off},${gseY-PR}`,SR.GSE,'3,3',1.1,0.65));
+  svg.appendChild(path(`M${X.EndCat+off+6},${cy_-TH/2} L${gseX+off},${gseY+PR}`,SR.GSE,'3,3',1.1,0.65));
+}
+
+// ── ANNOTATION CALLOUTS ──
+const CALLOUTS = [
+  // [x, y, dx, dy, text, color]
+  [runwayX, runwayY, -160, -10,
+   '① วางด้านบนสุด\n   เส้นวิ่งผ่าน top corridor', SR.Runway],
+  [bayX, bayY, 80, 10,
+   '② วางด้านล่างสุด\n   เส้นวิ่งผ่าน bottom corridor', SR.Bay],
+  [ftX, ftY, 140, -8,
+   '③ วางเหนือ Fuel lane\n   เส้นสั้น แนวตั้ง', SR.FuelTruck],
+  [ctX, ctY, 140, 10,
+   '③ วางใต้ Catering lane\n   เส้นสั้น แนวตั้ง', SR.CatTruck],
+  [apronX, apronY, -200, 0,
+   '④ วางกลางช่องว่าง\n   ตรง x-col ของ StartFuel', SR.Apron],
+  [gseX, gseY, 140, 0,
+   '④ วางกลางช่องว่าง\n   ตรง x-col ของ EndFuel', SR.GSE],
+];
+
+for (const [x,y,dx,dy,txt,col] of CALLOUTS) {
+  const lx = x+dx, ly = y+dy;
+  svg.appendChild(el('line',{x1:x,y1:y,x2:lx,y2:ly,
+    stroke:col,'stroke-width':0.8,'stroke-dasharray':'3,3',opacity:0.6}));
+  const lines = txt.split('\n');
+  lines.forEach((line,i)=>{
+    const anchor = dx < 0 ? 'end' : 'start';
+    svg.appendChild(label(lx, ly+(i*13)-4, line, col, 9.5, anchor, i===0));
+  });
+}
+
+// ── KEY INSIGHT BOX ──
+const kx=580, ky=H-80;
+svg.appendChild(el('rect',{x:kx,y:ky,width:730,height:52,
+  fill:'#fefce8',stroke:'#fbbf24','stroke-width':1.5,rx:8}));
+svg.appendChild(label(kx+16, ky+17, '💡 หลักการ: วาง Shared Resource ตรง x-column ของ Transition ที่ใช้มัน', '#78350f', 11, 'start', true));
+svg.appendChild(label(kx+16, ky+34, '→ เส้นกลายเป็นแนวตั้ง ไม่ตัดกัน · ใช้ช่องว่างระหว่าง row เป็น routing channel', '#92400e', 10.5, 'start'));
+
+// ── FOOTER ──
+svg.appendChild(label(W-10, H-6,
+  'Layout Blueprint — Aircraft Turnaround 3-Aircraft Petri Net',
+  '#cbd5e1', 9, 'end'));
+</script>
+</body>
+</html>
