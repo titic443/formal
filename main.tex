@@ -55,8 +55,8 @@ for Deadlock Detection and Liveness Analysis}
 \begin{abstract}
 This paper presents a formal verification approach for the aircraft turnaround
 process using Time Petri Nets with quantitative worker pool resources. We model
-an airport scenario comprising two aircraft sharing a gate, a runway, and five
-ground service worker pools. The model is analysed using the TINA toolbox to
+an airport scenario comprising three aircraft sharing one runway, two bays, and
+five ground service worker pools. The model is analysed using the TINA toolbox to
 perform reachability graph construction for deadlock detection and LTL model
 checking for safety and liveness verification. We identify deadlock conditions
 arising from circular worker pool competition and resolve them via a GSE Permit
@@ -313,28 +313,40 @@ single activity place.
 \begin{figure*}[tp]
   \centering
   \includegraphics[width=\textwidth]{figure2.png}
-  \caption{Petri Net Model of Aircraft Turnaround Process showing three aircraft
-           (A1, A2, A3) sharing worker pools (clean\_team, fuel\_team,
-           catering\_team, unload\_team, maintenance\_team) with fast and slow
-           service paths. Concurrent ground handling is structurally limited to
-           two aircraft at a time by the apron resource tokens.}
+  \caption{Petri Net model of the three-aircraft turnaround process with shared
+           worker pools and fast/slow service paths. Apron resources structurally
+           limit concurrent ground handling to two aircraft at a time.}
   \label{fig:worker_pool}
 \end{figure*}
+\FloatBarrier
 
 \subsection{Worker Pool Parametrisation}
 
-Fig.~\ref{fig:worker_params} presents the worker pool parameters for each ground
-service. The fast transition interval is derived from the scenario in which the
-full team is deployed, while the slow interval reflects a minimum-crew
-deployment. These values are informed by operational benchmarks from the
-literature~\cite{b1,b2,b3}.
+Table~\ref{tab:worker_params} presents the worker pool parameters for each ground
+service. To keep the state space tractable for TINA, firing intervals are
+assigned only to the completion transitions rather than to every individual
+start and activity transition. All fast completion transitions share the
+interval $[3,~5]$, and all slow completion transitions share $[6,~9]$,
+reflecting the difference in task duration between full-crew and minimum-crew
+deployments. Pool sizes and crew allocations are informed by operational
+benchmarks from the literature~\cite{b1,b2,b3}.
 
-\begin{figure}[htbp]
-  \centering
-  % \includegraphics[width=\columnwidth]{figure3_fork_join.png}
-  \caption{Worker Pool Parameters Per Ground Service.}
-  \label{fig:worker_params}
-\end{figure}
+\begin{table}[h!]
+  \caption{Worker Pool Parameters Per Ground Service}
+  \label{tab:worker_params}
+  \footnotesize
+  \begin{tabularx}{\columnwidth}{@{}Xcccc@{}}
+    \toprule
+    \textbf{Service} & \textbf{Pool ($N$)} & \textbf{Fast crew} & \textbf{Slow crew} & \textbf{Interval (fast/slow)} \\
+    \midrule
+    Unloading   & 6  & 6  & 2 & {[}3,5{]}/{[}6,9{]} \\
+    Cleaning    & 8  & 6  & 2 & {[}3,5{]}/{[}6,9{]} \\
+    Fueling     & 4  & 3  & 1 & {[}3,5{]}/{[}6,9{]} \\
+    Catering    & 8  & 6  & 2 & {[}3,5{]}/{[}6,9{]} \\
+    Maintenance & 10 & 10 & 2 & {[}3,5{]}/{[}6,9{]} \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
 
 \subsection{Resource Contention and Deadlock Conditions}
 
@@ -563,8 +575,8 @@ intervals. Real airport operations exhibit stochastic task durations and dynamic
 crew availability due to shift changes, equipment failures, and weather delays.
 Extending the model to Stochastic Petri Nets or Coloured Petri Nets would allow
 probabilistic analysis of turnaround performance. Additionally, the present model
-considers two aircraft; scaling to the full three-aircraft scenario described in
-the paper requires additional pool competition analysis. Future work will
+considers three aircraft with apron resource constraints; scaling to larger
+fleets would require additional pool competition analysis. Future work will
 incorporate actual TINA state space counts and evaluate the impact of varying
 pool sizes on deadlock probability and expected turnaround time.
 
@@ -582,10 +594,10 @@ path separation via distinct activity places ensures that completion transitions
 fire with the correct temporal interval corresponding to the workforce deployed,
 without requiring inhibitor arcs or Coloured Petri Nets.
 
-Using the TINA toolbox, we analysed the reachability graph of a two-aircraft
-scenario sharing five worker pools, detected deadlock conditions arising from
-circular worker pool competition, and resolved them via a GSE Permit control
-place. All safety and liveness properties were verified in the corrected model.
+Using the TINA toolbox, we analysed the reachability graph of a three-aircraft
+scenario sharing five worker pools with apron resource constraints, detected
+deadlock conditions arising from circular worker pool competition, and resolved
+them via a GSE Permit control place. All safety and liveness properties were verified in the corrected model.
 These results demonstrate that formal verification using Time Petri Nets with
 worker pools provides rigorous guarantees about the correctness, safety, and
 temporal behaviour of concurrent ground handling operations, offering a
