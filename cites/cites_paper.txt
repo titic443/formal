@@ -3,6 +3,30 @@
 
   LTL model checking safety liveness concurrent systems
 
+
+Formal Methods in Avionic Software Certification: The DO-178C Perspective
+////
+G. Gigante and D. Pascarella, "Formal Methods in Avionic Software Certification: The DO-178C Perspective," in Leveraging Applications of Formal Methods, Verification and Validation. Applications and Case Studies, ISoLA 2012, Lecture Notes in Computer Science, vol. 7610, T. Margaria and B. Steffen, Eds. Springer, Berlin, Heidelberg, 2012, pp. 174-188, doi: 10.1007/978-3-642-34032-1_21.
+keywords: {DO-178C; formal methods; avionics; software certification; model checking; airborne software},
+
+
+Formal Specification and Verification of a Coordination Protocol for an Automated Air Traffic Control System
+////
+Y. Zhao and K. Y. Rozier, "Formal Specification and Verification of a Coordination Protocol for an Automated Air Traffic Control System," Science of Computer Programming, vol. 96, pp. 337-353, Dec. 2014, doi: 10.1016/j.scico.2014.04.002.
+keywords: {formal verification; air traffic control; model checking; LTL; CTL; NuSMV; separation assurance; conflict detection},
+
+
+Petri Nets: Properties, Analysis and Applications
+////
+T. Murata, "Petri nets: Properties, analysis and applications," Proceedings of the IEEE, vol. 77, no. 4, pp. 541-580, Apr. 1989, doi: 10.1109/5.24143.
+keywords: {Petri nets; concurrent systems; distributed systems; manufacturing; transportation; liveness; boundedness; reachability},
+
+
+Modeling and Simulation of Air France Baggage Handling System with Colored Petri Nets
+////
+D. L. Hafilah, A. Cakravastia, Y. Lafdail and N. Rakoto-Ravalontsalama, "Modeling and Simulation of Air France Baggage Handling System with Colored Petri Nets," IFAC-PapersOnLine, vol. 52, no. 13, pp. 2443-2448, 2019, doi: 10.1016/j.ifacol.2019.11.573.
+keywords: {Colored Petri Nets; baggage handling; airport; simulation; Air France},
+
 Using simulation to estimate critical paths and survival functions in aircraft turnaround processes
 ////
 A. S. Antonio, A. A. Juan, L. Calvet, P. Fonseca i Casas and D. Guimarans, "Using simulation to estimate critical paths and survival functions in aircraft turnaround processes," 2017 Winter Simulation Conference (WSC), Las Vegas, NV, USA, 2017, pp. 3394-3403, doi: 10.1109/WSC.2017.8248055.

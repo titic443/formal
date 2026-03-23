@@ -79,35 +79,35 @@ aircraft from the moment it lands at an airport until it departs for its next
 flight. This process is a critical determinant of airline on-time performance
 (OTP) and involves the coordination of multiple stakeholders, including airport
 authorities (e.g., Airport of Thailand: AOT), air navigation service providers
-(e.g., AEROTHAI), and individual airline ground handling teams~\cite{b1}.
+(e.g., AEROTHAI), and individual airline ground handling teams.
 
 The turnaround process can be divided into three main phases: (1)~\textit{Arrival
 and Docking}, where the aircraft lands, taxis to its assigned gate, and passengers
 disembark; (2)~\textit{Ground Handling}, where multiple service teams work in
 parallel to prepare the aircraft for its next flight; and (3)~\textit{Departure
 Preparation}, where weight and balance calculations are completed, passengers
-board, and the aircraft pushes back for takeoff~\cite{b2}.
+board, and the aircraft pushes back for takeoff.
 
 The ground handling phase is particularly challenging because it involves
 concurrent operations by multiple teams---all sharing limited resources such as
-apron space and ground support equipment (GSE)~\cite{b8,b11}, but these
+apron space and ground support equipment (GSE)~\cite{b1,b2}, but these
 approaches cannot provide formal guarantees about deadlock or safety property
 correctness under all possible resource contention scenarios. When multiple
 concurrent processes compete for shared resources, the risk of deadlock arises:
 a situation where every process is waiting for a resource held by another,
-resulting in a complete standstill~\cite{b3}. For example, a fuel truck may block
+resulting in a complete standstill. For example, a fuel truck may block
 the path of a catering truck, which in turn blocks a baggage cart, which blocks
 the fuel truck, creating a circular wait condition.
 
 Beyond deadlock, safety constraints impose strict ordering requirements. For
 instance, pushback must not occur while refueling is in progress, and boarding
-can only begin after all ground handling tasks are completed~\cite{b4}. Violations
+can only begin after all ground handling tasks are completed. Violations
 of these constraints can lead to serious safety incidents.
 
 Currently, turnaround operations are managed primarily through Standard
 Operating Procedures (SOPs) written in natural language, which may be ambiguous
 or incomplete, particularly in exceptional scenarios such as GSE
-malfunctions~\cite{b5}. This motivates the application of formal methods to
+malfunctions. This motivates the application of formal methods to
 provide mathematically rigorous guarantees about system behavior.
 
 In this paper, we apply formal verification using Place/Transition Petri Nets to
@@ -124,30 +124,16 @@ reflecting a realistic constrained operational scenario.
 \section{Related Work}
 %------------------------------------------------------------------
 
-\subsection{Formal Verification in Aviation Systems}
-
-Formal verification has a long history of application in safety-critical
-aviation systems. Model checking techniques have been applied to avionics
-software, air traffic management protocols, and flight control systems~\cite{b6}.
-The aerospace industry has adopted formal methods standards such as DO-178C,
-which recognises formal methods as an acceptable means of compliance for
-airborne software certification~\cite{b7}. Previous work has applied temporal
-logic model checking to verify properties of air traffic control procedures,
-including separation assurance and conflict detection algorithms. However,
-relatively little attention has been given to ground-side operations such as the
-turnaround process, despite its significant impact on operational efficiency and
-safety.
-
 \subsection{Aircraft Ground Handling and GSE Management}
 
 Several studies have analysed the turnaround process using quantitative methods.
-Kierzkowski et al.~\cite{b11} applied PERT-COST methods to model ground handling
+Kierzkowski et al.~\cite{b2} applied PERT-COST methods to model ground handling
 bottlenecks and resource variability across operational scenarios, identifying
 refueling and baggage handling as primary bottleneck activities. Saggar
-et al.~\cite{b8} proposed simulation-based optimisation of airport GSE management
+et al.~\cite{b1} proposed simulation-based optimisation of airport GSE management
 to improve turnaround performance, demonstrating that resource scheduling
-policies for GSE vehicles directly influence overall turnaround time. Deschamps
-et al.~\cite{b15} studied aircraft turnaround using simulation to estimate
+policies for GSE vehicles directly influence overall turnaround time. Antonio
+et al.~\cite{b3} studied aircraft turnaround using simulation to estimate
 critical paths and survival functions, providing statistical evidence for task
 duration variability under realistic operational conditions. While these
 approaches provide valuable operational insights, they cannot formally guarantee
@@ -158,14 +144,14 @@ sequences.
 
 Petri Nets, introduced by Carl Adam Petri in 1962, are a well-established
 mathematical formalism for modelling concurrent, asynchronous, and distributed
-systems~\cite{b9}. Place/Transition (P/T) Nets are particularly suitable for
+systems~\cite{b7}. Place/Transition (P/T) Nets are particularly suitable for
 modelling systems with shared resources, synchronisation requirements, and
 parallel activities. Petri Nets have been applied to transportation and logistics
 domains including manufacturing systems, railway signalling, and port
-operations~\cite{b10}. In the aviation context, Petri Nets have been used to
-model baggage handling systems~\cite{b12}. Time Petri Nets (TPN) extend this
+operations~\cite{b7}. In the aviation context, Petri Nets have been used to
+model baggage handling systems~\cite{b8}. Time Petri Nets (TPN) extend this
 formalism by associating firing intervals $[a, b]$ with transitions, enabling
-quantitative temporal analysis alongside structural verification~\cite{b14}. Our
+quantitative temporal analysis alongside structural verification. Our
 work extends this line of research by modelling the complete turnaround process
 with worker pool resources and timed transitions that reflect realistic workforce
 constraints.
@@ -173,16 +159,16 @@ constraints.
 \subsection{Deadlock and Liveness Analysis}
 
 Deadlock detection and prevention in Petri Nets is a well-studied problem.
-Ezpeleta et al.~\cite{b13} proposed Petri Net-based deadlock prevention policies
-for flexible manufacturing systems with shared resources. Feng et al.~\cite{b16}
+Xing et al.~\cite{b4} proposed Petri Net-based deadlock avoidance controllers
+for manufacturing systems with multiple resource service requirements. Feng et al.~\cite{b5}
 developed liveness analysis and deadlock control for automated manufacturing
-systems with multiple resource requirements. Uzam et al.~\cite{b17} conducted a
+systems with multiple resource requirements. Uzam et al.~\cite{b6} conducted a
 comprehensive study of deadlock and livelock detection using reachability graph
 analysis in TINA, demonstrating that TINA's state space exploration can reliably
 identify dead markings and livelock cycles in complex Petri Net models. The TINA
 toolbox provides comprehensive support for both structural and behavioural
 analysis, including reachability graph construction and LTL model
-checking~\cite{b14}. This paper adopts TINA as the verification backend and
+checking~\cite{b6}. This paper adopts TINA as the verification backend and
 extends prior deadlock-prevention approaches to the aircraft turnaround domain,
 incorporating worker pool resource allocation and timed transition intervals.
 
@@ -329,7 +315,7 @@ Fig.~\ref{fig:worker_params} presents the worker pool parameters for each ground
 service. The fast transition interval is derived from the scenario in which the
 full team is deployed, while the slow interval reflects a minimum-crew
 deployment. These values are informed by operational benchmarks from the
-literature~\cite{b8,b11,b15}.
+literature~\cite{b1,b2,b3}.
 
 \begin{figure}[htbp]
   \centering
@@ -351,11 +337,11 @@ preserving decidability.
 A deadlock condition emerges when circular waiting occurs across multiple pools.
 For example: A1 holds the fueling pool and waits for the catering pool, while A2
 holds the catering pool and waits for the fueling pool. This is the classic
-circular wait condition~\cite{b3}, and it is detected by TINA as a dead marking
+circular wait condition, and it is detected by TINA as a dead marking
 in the reachability graph. We introduce a GSE Permit control place
 ($P_{\mathit{GSE\_Permit}}$) with an initial marking of 2 to bound the total
 number of concurrent GSE operations, resolving this deadlock following the
-resource ordering approach of~\cite{b13,b16}.
+deadlock avoidance and liveness control approaches established in~\cite{b4,b5}.
 
 \subsection{Safety Constraints in the Model}
 
@@ -505,8 +491,8 @@ $P_{\mathit{GSE\_Permit}}$ with an initial marking of 2. Each ground handling
 transition that acquires workers must also consume one permit token; the
 corresponding completion transition returns the permit. This limits concurrent
 GSE operations to at most 2 across both aircraft, preventing the circular wait
-condition. The approach is analogous to resource ordering techniques established
-in~\cite{b13,b16}. After applying this control mechanism, TINA confirms that no
+condition. The approach is analogous to the deadlock avoidance and liveness control
+techniques established in~\cite{b4,b5}. After applying this control mechanism, TINA confirms that no
 dead markings exist in the reachability graph other than the intended terminal
 state where both aircraft have completed takeoff.
 
@@ -593,7 +579,51 @@ principled foundation for future airport operational planning tools.
 %------------------------------------------------------------------
 \begin{thebibliography}{00}
 
-% TODO: Add references
+\bibitem{b1}
+S. Saggar, M. Tomasella, G. Cattaneo and A. Matta, ``Enhanced Operational
+Management Of Airport Ground Support Equipment For Better Aircraft Turnaround
+Performance,'' \textit{2021 Winter Simulation Conference (WSC)}, Phoenix, AZ,
+USA, 2021, pp. 1--12, doi: 10.1109/WSC52266.2021.9715320.
+
+\bibitem{b2}
+A. Kierzkowski, J. Ryczyński, T. Kisiel, E. Mardeusz and O. Prentkovskis,
+``Modelling the Sustainable Development of the Ground Handling Process Using
+the PERT-COST Method,'' \textit{Sustainability}, vol. 17, no. 24, p. 11278,
+2025, doi: 10.3390/su172411278.
+
+\bibitem{b3}
+A. S. Antonio, A. A. Juan, L. Calvet, P. Fonseca i Casas and D. Guimarans,
+``Using simulation to estimate critical paths and survival functions in aircraft
+turnaround processes,'' \textit{2017 Winter Simulation Conference (WSC)},
+Las Vegas, NV, USA, 2017, pp. 3394--3403, doi: 10.1109/WSC.2017.8248055.
+
+\bibitem{b4}
+K. Xing, X. Jin and Y. Feng, ``Deadlock Avoidance Petri Net Controller for
+Manufacturing Systems with Multiple Resource Service,'' \textit{Proc. 2005 IEEE
+International Conference on Robotics and Automation}, Barcelona, Spain, 2005,
+pp. 4757--4761, doi: 10.1109/ROBOT.2005.1570855.
+
+\bibitem{b5}
+Y. Feng, K. Xing, M. Zhou and H. Liu, ``Liveness Analysis and Deadlock Control
+for Automated Manufacturing Systems With Multiple Resource Requirements,''
+\textit{IEEE Transactions on Systems, Man, and Cybernetics: Systems}, vol. 50,
+no. 2, pp. 525--538, Feb. 2020, doi: 10.1109/TSMC.2017.2767902.
+
+\bibitem{b6}
+M. Uzam et al., ``On Deadlock/Livelock Studies Based on Reachability Graph of
+Petri Nets by Using TINA,'' \textit{IEEE Access}, vol. 12,
+pp. 135506--135534, 2024, doi: 10.1109/ACCESS.2024.3461168.
+
+\bibitem{b7}
+T. Murata, ``Petri Nets: Properties, Analysis and Applications,''
+\textit{Proceedings of the IEEE}, vol. 77, no. 4, pp. 541--580,
+Apr. 1989, doi: 10.1109/5.24143.
+
+\bibitem{b8}
+D. L. Hafilah, A. Cakravastia, Y. Lafdail and N. Rakoto-Ravalontsalama,
+``Modeling and Simulation of Air France Baggage Handling System with Colored
+Petri Nets,'' \textit{IFAC-PapersOnLine}, vol. 52, no. 13,
+pp. 2443--2448, 2019, doi: 10.1016/j.ifacol.2019.11.573.
 
 \end{thebibliography}
 
