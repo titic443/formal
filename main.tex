@@ -13,6 +13,7 @@
 \usepackage{url}
 \usepackage{caption}
 \captionsetup[table]{justification=raggedright, singlelinecheck=false}
+\usepackage{float}
 \usepackage{placeins}
 \usepackage{stfloats}
 
@@ -59,8 +60,8 @@ an airport scenario comprising three aircraft sharing one runway, two bays, and
 five ground service worker pools. The model is analysed using the TINA toolbox to
 perform reachability graph construction for deadlock detection and LTL model
 checking for safety and liveness verification. We identify deadlock conditions
-arising from circular worker pool competition and resolve them via a GSE Permit
-control place. All defined safety and liveness properties are verified in the
+arising from circular worker pool competition and resolve them via a
+\textit{GSE\_Done} control place. All defined safety and liveness properties are verified in the
 corrected model.
 \end{abstract}
 
@@ -262,30 +263,21 @@ proceeding to its assigned fork. Since only two tokens are available, at most
 two aircraft may simultaneously execute ground service tasks; the third must
 wait at the landing and taxi stage until a departing aircraft returns its
 apron resource token via the pushback transition. Each aircraft progresses
-through three operational phases as summarised in Table~\ref{tab:phases}.
-
-\begin{table*}[tp]
-  \caption{Aircraft Turnaround Operational Phases}
-  \label{tab:phases}
-  \small
-  \begin{tabular}{@{}p{2.2cm} p{5.5cm} p{8.5cm}@{}}
-    \toprule
-    \textbf{Phase} & \textbf{Key States} & \textbf{Description} \\
-    \midrule
-    Arrival
-      & Schedule $\to$ Request Landing $\to$ Landing $\to$ Taxi $\to$ Deplane $\to$ Dock
-      & Aircraft is scheduled, lands, taxis to bay, passengers deplane \\[4pt]
-    Ground Handling
-      & 5 parallel tasks (concurrent)
-      & Refueling, catering, cleaning, unloading, maintenance \\[4pt]
-    Departure
-      & Board $\to$ Pushback $\to$ Takeoff
-      & All ground tasks complete, aircraft boards and departs \\
-    \bottomrule
-  \end{tabular}
-\end{table*}
+through three operational phases: (1)~\textit{Arrival}, covering scheduling,
+landing, taxi, deplaning, and docking; (2)~\textit{Ground Handling}, comprising
+five concurrent service tasks; and (3)~\textit{Departure}, consisting of
+boarding, pushback, and takeoff.
 
 \subsection{Worker Pool Design}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{figure2.png}
+  \caption{Petri Net model of the three-aircraft turnaround process with shared
+           worker pools and fast/slow service paths. Apron resources structurally
+           limit concurrent ground handling to two aircraft at a time.}
+  \label{fig:worker_pool}
+\end{figure}
 
 A central modelling contribution of this work is the replacement of binary team
 tokens with quantitative worker pool places. Each ground service team is
@@ -309,16 +301,6 @@ places. This structural separation ensures that the firing interval applied at
 completion accurately reflects the workforce that was allocated at the start of
 the task, resolving the ambiguity that would arise if both paths converged on a
 single activity place.
-
-\begin{figure*}[tp]
-  \centering
-  \includegraphics[width=\textwidth]{figure2.png}
-  \caption{Petri Net model of the three-aircraft turnaround process with shared
-           worker pools and fast/slow service paths. Apron resources structurally
-           limit concurrent ground handling to two aircraft at a time.}
-  \label{fig:worker_pool}
-\end{figure*}
-\FloatBarrier
 
 \subsection{Worker Pool Parametrisation}
 
@@ -351,37 +333,39 @@ benchmarks from the literature~\cite{b1,b2,b3}.
 \subsection{Resource Contention and Deadlock Conditions}
 
 Resource contention arises when two concurrently active aircraft attempt to draw
-from the same worker pool. Consider the maintenance pool ($N = 10$): if A1 fires
-$t_{\mathit{maint\_fast}}$ (consuming all 10 workers), the pool is exhausted and
-A2 cannot fire $t_{\mathit{maint\_fast}}$. A2 may still fire
-$t_{\mathit{maint\_slow}}$ (consuming 2 workers) if sufficient tokens remain;
-otherwise it must wait until A1 completes and returns the workers. The arc
-weights therefore create a natural priority ordering without the need for
-inhibitor arcs, preserving decidability. Note that because
-$p_{\mathit{appron\_resource}}$ limits concurrent ground handling to two aircraft,
-a third aircraft (A3) cannot enter this contention scenario until one of the
-active aircraft departs.
+from the same worker pool. Consider the \textit{maintenance\_team} place
+($N = 10$): if A1 fires $\mathit{sf\_maintenance}$ (consuming all 10 workers),
+the pool is exhausted and A2 cannot fire $\mathit{sf\_maintenance}$. A2 may
+still fire $\mathit{ss\_maintenance2}$ (consuming 2 workers) if sufficient
+tokens remain; otherwise it must wait until A1 completes and returns the workers
+via $\mathit{ef\_maintenance}$. The arc weights therefore create a natural
+priority ordering without the need for inhibitor arcs, preserving decidability.
+Note that because $\mathit{appron\_resource}$ limits concurrent ground handling
+to two aircraft, a third aircraft (A3) cannot enter this contention scenario
+until one of the active aircraft departs.
 
 A deadlock condition emerges when circular waiting occurs across multiple pools.
-For example: A1 holds the fueling pool and waits for the catering pool, while A2
-holds the catering pool and waits for the fueling pool. This is the classic
-circular wait condition, and it is detected by TINA as a dead marking
-in the reachability graph. We introduce a GSE Permit control place
-($P_{\mathit{GSE\_Permit}}$) with an initial marking of 2 to bound the total
-number of concurrent GSE operations, resolving this deadlock following the
-deadlock avoidance and liveness control approaches established in~\cite{b4,b5}.
+For example: A1 holds \textit{fuel\_team} and waits for \textit{catering\_team},
+while A2 holds \textit{catering\_team} and waits for \textit{fuel\_team}. This
+is the classic circular wait condition, and it is detected by TINA as a dead
+marking in the reachability graph. We introduce a \textit{GSE\_Done} control
+place with an initial marking of 2 to bound the total number of concurrent GSE
+operations; each completion transition (\textit{all\_done\_1},
+\textit{all\_done2}, \textit{all\_done3}) returns a token to \textit{GSE\_Done},
+which is consumed again only when a new \textit{board} transition fires. This
+resolves the circular wait following the deadlock avoidance and liveness control
+approaches established in~\cite{b4,b5}.
 
 \subsection{Safety Constraints in the Model}
 
 Safety constraints are encoded as structural preconditions. Pushback requires a
-token in $p_{\mathit{refuel\_done}}$, ensuring refueling is complete before the
-aircraft moves. Boarding requires tokens in all five completion places
-($p_{\mathit{refuel\_done}}$, $p_{\mathit{catering\_done}}$,
-$p_{\mathit{clean\_done}}$, $p_{\mathit{unload\_done}}$,
-$p_{\mathit{maint\_done}}$), enforcing sequential departure after all ground
-handling tasks are finished. Runway mutual exclusion is enforced by the single
-token in $p_{\mathit{runway\_free}}$, which must be held by any transition
-involving runway use.
+token in $\mathit{d\_fuel}$, ensuring refueling is complete before the aircraft
+moves. Boarding requires tokens in all five completion places
+($\mathit{d\_fuel}$, $\mathit{d\_catering}$, $\mathit{d\_clean}$,
+$\mathit{d\_unload}$, $\mathit{d\_maintenance}$), enforcing sequential departure
+after all ground handling tasks are finished. Runway mutual exclusion is enforced
+by the single token in $\mathit{runway}$, which must be consumed by any
+transition involving runway use.
 
 
 \FloatBarrier
@@ -597,7 +581,7 @@ without requiring inhibitor arcs or Coloured Petri Nets.
 Using the TINA toolbox, we analysed the reachability graph of a three-aircraft
 scenario sharing five worker pools with apron resource constraints, detected
 deadlock conditions arising from circular worker pool competition, and resolved
-them via a GSE Permit control place. All safety and liveness properties were verified in the corrected model.
+them via a \textit{GSE\_Done} control place. All safety and liveness properties were verified in the corrected model.
 These results demonstrate that formal verification using Time Petri Nets with
 worker pools provides rigorous guarantees about the correctness, safety, and
 temporal behaviour of concurrent ground handling operations, offering a
