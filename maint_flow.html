@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>Maintenance Flow</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; padding: 24px; background: #f0f4f8; font-family: 'Segoe UI', Arial, sans-serif; }
+h1 { font-size: 15px; color: #1e3a5f; margin: 0 0 4px; }
+p  { font-size: 11px; color: #666; margin: 0 0 14px; }
+.wrap { background: #fff; border-radius: 12px; box-shadow: 0 2px 16px rgba(0,0,0,.12); overflow: auto; padding: 12px; }
+</style>
+</head>
+<body>
+<h1>✈ Maintenance Flow — Worker Pool Model</h1>
+<p>แสดง 1 task (Maintenance) · 10 workers · fast path (ใช้ 10 คน → 30 นาที) · slow path (ใช้ 2 คน → 60 นาที)</p>
+
+<div class="wrap">
+<svg id="svg" xmlns="http://www.w3.org/2000/svg" width="1020" height="560"></svg>
+</div>
+
+<script>
+const svg = document.getElementById('svg');
+const NS  = 'http://www.w3.org/2000/svg';
+
+function el(tag, attrs, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k,v] of Object.entries(attrs||{})) e.setAttribute(k,v);
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+// ── arrow markers ──
+const defs = el('defs');
+function marker(id, color) {
+  const m = el('marker',{id,'markerWidth':'9','markerHeight':'9','refX':'7','refY':'4','orient':'auto'});
+  m.appendChild(el('polygon',{points:'0,0 8,4 0,8',fill:color}));
+  defs.appendChild(m);
+}
+marker('ab','#1d4ed8');
+marker('ag','#15803d');
+marker('ar','#c2410c');
+marker('agr','#6b7280');
+svg.appendChild(defs);
+
+// ── background ──
+svg.appendChild(el('rect',{x:0,y:0,width:1020,height:560,fill:'#f8fafc'}));
+
+/* ────────────────────────────────────────────
+   LAYOUT   (left → right, top = fast, bottom = slow)
+
+   Col positions (center-x):
+   A  100  available1
+   B  220  fork1  (AND-split)
+   C  360  s_maint_fast  (y=160)  /  s_maint_slow (y=370)
+   D  500  worker pool  (center y=265)
+   E  640  maintaining  (y=160) / maintaining_slow (y=370)
+            → actually 1 activity place (y=265)
+   F  780  e_maint  (center y=265)
+   G  900  d_maint  (center y=265)
+
+   Pool sits between col C and E, vertically centred
+──────────────────────────────────────────── */
+
+const XA=90, XB=210, XC=370, XD=530, XE=660, XF=800, XG=920;
+const YF=175, YS=390, YM=282;   // fast-row, slow-row, middle
+
+const PR=28, TW=68, TH=28;
+
+// ── helper: circle place ──
+function place(x,y,label,tokens,bg,stroke,sub) {
+  const g = el('g');
+  g.appendChild(el('circle',{cx:x,cy:y,r:PR,fill:bg||'#dbeafe',stroke:stroke||'#1d4ed8','stroke-width':'2.2'}));
+
+  // tokens
+  if (tokens===1) {
+    g.appendChild(el('circle',{cx:x,cy:y,r:'6',fill:'#111'}));
+  } else if (tokens>1 && tokens<=5) {
+    const pos=[[-7,-7],[7,-7],[0,7],[-8,1],[8,1]].slice(0,tokens);
+    pos.forEach(([dx,dy])=>g.appendChild(el('circle',{cx:x+dx,cy:y+dy,r:'4.5',fill:'#111'})));
+  } else if (tokens>5) {
+    // draw multiple dots pattern + number
+    g.appendChild(el('text',{x,y:y+1,'text-anchor':'middle','dominant-baseline':'middle',
+      'font-size':'15','font-weight':'bold',fill:'#7c1041'},String(tokens)));
+  }
+
+  // label below
+  if (label) {
+    g.appendChild(el('text',{x,y:y+PR+14,'text-anchor':'middle','font-size':'11','font-weight':'600',fill:'#1e3a5f'},label));
+  }
+  if (sub) {
+    g.appendChild(el('text',{x,y:y+PR+27,'text-anchor':'middle','font-size':'9.5',fill:'#64748b'},sub));
+  }
+  return g;
+}
+
+// worker pool place
+function pool(x,y,n) {
+  const g = el('g');
+  g.appendChild(el('circle',{cx:x,cy:y,r:PR+10,fill:'#fce7f3',stroke:'#9d174d','stroke-width':'2.8'}));
+  g.appendChild(el('text',{x,y:y-6,'text-anchor':'middle','dominant-baseline':'middle',
+    'font-size':'20','font-weight':'bold',fill:'#9d174d'},String(n)));
+  g.appendChild(el('text',{x,y:y+11,'text-anchor':'middle','dominant-baseline':'middle',
+    'font-size':'9.5',fill:'#9d174d'},'workers'));
+  g.appendChild(el('text',{x,y:y+PR+10+15,'text-anchor':'middle','font-size':'11','font-weight':'600',fill:'#7c1041'},'maint_workers'));
+  return g;
+}
+
+// transition box
+function trans(x,y,label,bg,stroke,time) {
+  const g = el('g');
+  g.appendChild(el('rect',{x:x-TW/2,y:y-TH/2,width:TW,height:TH,
+    fill:bg||'#fef9c3',stroke:stroke||'#854d0e','stroke-width':'2.2',rx:'5'}));
+  g.appendChild(el('text',{x,y:time?y-4:y+1,'text-anchor':'middle',
+    'dominant-baseline':'middle','font-size':'9.5','font-weight':'bold',fill:stroke||'#854d0e'},label));
+  if (time) {
+    g.appendChild(el('text',{x,y:y+8,'text-anchor':'middle',
+      'dominant-baseline':'middle','font-size':'8.5',fill:stroke||'#854d0e'},time));
+  }
+  return g;
+}
+
+// line arrow
+function arr(x1,y1,x2,y2,color,marker,dash,shrink1,shrink2) {
+  const s1 = shrink1??PR+2, s2 = shrink2??PR+2;
+  const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
+  if (len<1) return el('g');
+  const sx=x1+dx/len*s1, sy=y1+dy/len*s1;
+  const ex=x2-dx/len*s2, ey=y2-dy/len*s2;
+  const g = el('g');
+  const line = el('line',{x1:sx,y1:sy,x2:ex,y2:ey,
+    stroke:color,'stroke-width':'2','marker-end':`url(#${marker})`});
+  if (dash) line.setAttribute('stroke-dasharray',dash);
+  g.appendChild(line);
+  return g;
+}
+
+// arc with weight label
+function warc(x1,y1,x2,y2,color,mk,weight,dash,s1,s2) {
+  const g = arr(x1,y1,x2,y2,color,mk,dash,s1,s2);
+  if (weight) {
+    const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
+    const s1v=s1??PR+2, s2v=s2??PR+2;
+    const sx=x1+dx/len*s1v, sy=y1+dy/len*s1v;
+    const ex=x2-dx/len*s2v, ey=y2-dy/len*s2v;
+    const mx=(sx+ex)/2, my=(sy+ey)/2;
+    g.appendChild(el('rect',{x:mx-13,y:my-9,width:26,height:16,fill:'white',opacity:'0.9',rx:'4'}));
+    g.appendChild(el('text',{x:mx,y:my+1,'text-anchor':'middle','dominant-baseline':'middle',
+      'font-size':'10','font-weight':'bold',fill:color},`w=${weight}`));
+  }
+  return g;
+}
+
+// curved path arrow
+function carc(d,color,mk,dash) {
+  const g = el('g');
+  const p = el('path',{d,fill:'none',stroke:color,'stroke-width':'1.9','marker-end':`url(#${mk})`});
+  if (dash) p.setAttribute('stroke-dasharray',dash);
+  g.appendChild(p);
+  return g;
+}
+
+// ─────────────────────────────────────────────
+//  DRAW ORDER: arcs first (behind nodes)
+// ─────────────────────────────────────────────
+
+// available1 → fork1
+svg.appendChild(arr(XA,YM,XB,YM,'#1d4ed8','ab',null,PR+2,TH/2+2));
+
+// fork1 → s_maint_fast  (diagonal up)
+svg.appendChild(carc(
+  `M${XB+TW/2},${YM-4} C${XB+80},${YF} ${XC-60},${YF} ${XC-TW/2},${YF}`,
+  '#1d4ed8','ab'));
+
+// fork1 → s_maint_slow  (diagonal down)
+svg.appendChild(carc(
+  `M${XB+TW/2},${YM+4} C${XB+80},${YS} ${XC-60},${YS} ${XC-TW/2},${YS}`,
+  '#6b7280','agr','6,4'));
+
+// pool → s_maint_fast  (w=10, green)
+svg.appendChild(warc(XD-PR-10,YM,XC+TW/2,YF,'#15803d','ag',10,null,4,TH/2+2));
+
+// pool → s_maint_slow  (w=2, red-orange)
+svg.appendChild(warc(XD-PR-10,YM,XC+TW/2,YS,'#c2410c','ar',2,'5,3',4,TH/2+2));
+
+// s_maint_fast → maintaining (activity place)
+svg.appendChild(arr(XC+TW/2,YF,XE,YM,'#15803d','ag',null,TH/2+2,PR+2));
+
+// s_maint_slow → maintaining
+svg.appendChild(arr(XC+TW/2,YS,XE,YM,'#c2410c','ar','5,3',TH/2+2,PR+2));
+
+// maintaining → e_maint
+svg.appendChild(arr(XE,YM,XF,YM,'#1d4ed8','ab',null,PR+2,TH/2+2));
+
+// e_maint → d_maint
+svg.appendChild(arr(XF+TW/2,YM,XG,YM,'#1d4ed8','ab',null,TH/2+2,PR+2));
+
+// e_maint → pool (return workers, curved up, green dashed)
+svg.appendChild(carc(
+  `M${XF},${YM-TH/2} C${XF},${YM-130} ${XD},${YM-150} ${XD},${YM-PR-10}`,
+  '#15803d','ag','4,4'));
+
+// return arc weight label
+{
+  const mx = (XF+XD)/2+10, my = YM-140;
+  svg.appendChild(el('rect',{x:mx-16,y:my-9,width:32,height:16,fill:'white',opacity:'0.9',rx:'4'}));
+  svg.appendChild(el('text',{x:mx,y:my+1,'text-anchor':'middle','dominant-baseline':'middle',
+    'font-size':'10','font-weight':'bold',fill:'#15803d'},'return'));
+}
+
+// ─────────────────────────────────────────────
+//  DRAW NODES  (on top of arcs)
+// ─────────────────────────────────────────────
+
+// available1
+svg.appendChild(place(XA, YM, 'available1', 1, '#dbeafe', '#1d4ed8', '(token = A/C ready)'));
+
+// fork1 (AND-split)
+svg.appendChild(trans(XB, YM, 'fork1', '#fef9c3', '#854d0e'));
+svg.appendChild(el('text',{x:XB,y:YM+TH/2+14,'text-anchor':'middle','font-size':'9',fill:'#92400e'},'AND-split'));
+
+// worker pool
+svg.appendChild(pool(XD, YM, 10));
+
+// s_maint_fast (green)
+svg.appendChild(trans(XC, YF, 's_maint_fast', '#dcfce7', '#15803d', '[28,32] min'));
+
+// s_maint_slow (orange-red)
+svg.appendChild(trans(XC, YS, 's_maint_slow', '#fff7ed', '#c2410c', '[58,62] min'));
+
+// maintaining (activity place — no token initially)
+svg.appendChild(place(XE, YM, 'maintaining', 0, '#f3e8ff', '#7e22ce', '(task in progress)'));
+
+// e_maint
+svg.appendChild(trans(XF, YM, 'e_maint', '#fef9c3', '#854d0e', '[0,0]'));
+
+// d_maint (done place)
+svg.appendChild(place(XG, YM, 'd_maint', 0, '#dcfce7', '#15803d', '(done ✓)'));
+
+// ─────────────────────────────────────────────
+//  ANNOTATION BOXES
+// ─────────────────────────────────────────────
+
+// fast path box
+svg.appendChild(el('rect',{x:XC-TW/2-8,y:YF-TH/2-42,width:TW+16,height:34,
+  fill:'#f0fdf4',stroke:'#86efac','stroke-width':'1.5',rx:'6'}));
+svg.appendChild(el('text',{x:XC,y:YF-TH/2-30,'text-anchor':'middle','font-size':'9.5',fill:'#15803d','font-weight':'bold'},'Fast Path'));
+svg.appendChild(el('text',{x:XC,y:YF-TH/2-17,'text-anchor':'middle','font-size':'9',fill:'#166534'},'10 workers → 30 min'));
+
+// slow path box
+svg.appendChild(el('rect',{x:XC-TW/2-8,y:YS+TH/2+10,width:TW+16,height:34,
+  fill:'#fff7ed',stroke:'#fdba74','stroke-width':'1.5',rx:'6'}));
+svg.appendChild(el('text',{x:XC,y:YS+TH/2+24,'text-anchor':'middle','font-size':'9.5',fill:'#c2410c','font-weight':'bold'},'Slow Path'));
+svg.appendChild(el('text',{x:XC,y:YS+TH/2+37,'text-anchor':'middle','font-size':'9',fill:'#9a3412'},'2 workers → 60 min'));
+
+// contention note
+svg.appendChild(el('rect',{x:XD-70,y:30,width:140,height:50,
+  fill:'#fef2f2',stroke:'#fca5a5','stroke-width':'1.5',rx:'6'}));
+svg.appendChild(el('text',{x:XD,y:50,'text-anchor':'middle','font-size':'9.5',fill:'#991b1b','font-weight':'bold'},'⚠ Resource Contention'));
+svg.appendChild(el('text',{x:XD,y:64,'text-anchor':'middle','font-size':'9',fill:'#7f1d1d'},'AC1 & AC2 แย่ง pool นี้'));
+svg.appendChild(el('text',{x:XD,y:76,'text-anchor':'middle','font-size':'9',fill:'#7f1d1d'},'→ อาจเกิด deadlock'));
+
+// return arc label
+svg.appendChild(el('text',{x:XF+18,y:YM-75,'text-anchor':'start','font-size':'9.5',fill:'#15803d'},'คืน workers'));
+svg.appendChild(el('text',{x:XF+18,y:YM-62,'text-anchor':'start','font-size':'9',fill:'#166534'},'กลับ pool'));
+
+// column labels (top)
+const cols = [{x:XA,t:'Place'},{x:XB,t:'Transition'},{x:XC,t:'Transition'},{x:XD,t:'Worker Pool'},{x:XE,t:'Place'},{x:XF,t:'Transition'},{x:XG,t:'Place'}];
+cols.forEach(({x,t})=>{
+  svg.appendChild(el('rect',{x:x-38,y:505,width:76,height:18,fill:'#e2e8f0',rx:'4'}));
+  svg.appendChild(el('text',{x,y:517,'text-anchor':'middle','font-size':'9',fill:'#475569'},t));
+});
+
+// Legend
+const LX=10, LY=492;
+const items=[
+  {color:'#15803d',dash:null,label:'Fast path arc (w=10 workers)'},
+  {color:'#c2410c',dash:'5,3',label:'Slow path arc (w=2 workers)'},
+  {color:'#15803d',dash:'4,4',label:'Return workers to pool'},
+  {color:'#1d4ed8',dash:null,label:'Main flow'},
+];
+svg.appendChild(el('rect',{x:LX,y:LY,width:280,height:60,fill:'white',stroke:'#e2e8f0','stroke-width':'1',rx:'6'}));
+items.forEach(({color,dash,label},i)=>{
+  const y=LY+13+i*13;
+  const line=el('line',{x1:LX+8,y1:y,x2:LX+32,y2:y,stroke:color,'stroke-width':'1.8'});
+  if(dash) line.setAttribute('stroke-dasharray',dash);
+  svg.appendChild(line);
+  svg.appendChild(el('polygon',{points:`${LX+32},${y-3} ${LX+40},${y} ${LX+32},${y+3}`,fill:color}));
+  svg.appendChild(el('text',{x:LX+46,y:y+1,'dominant-baseline':'middle','font-size':'9',fill:'#374151'},label));
+});
+
+svg.setAttribute('height','540');
+</script>
+</body>
+</html>

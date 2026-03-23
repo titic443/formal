@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>Shared Maintenance — Full Model</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; padding: 20px; background: #f0f4f8; font-family: 'Segoe UI', Arial, sans-serif; }
+h1 { font-size: 15px; color: #1e3a5f; margin: 0 0 4px; }
+p  { font-size: 11px; color: #666; margin: 0 0 12px; }
+.wrap { background: #fff; border-radius: 12px; box-shadow: 0 2px 16px rgba(0,0,0,.12); overflow: auto; padding: 12px; }
+</style>
+</head>
+<body>
+<h1>✈ Shared Maintenance Worker Pool — 2 Aircraft Full Model</h1>
+<p>AC1 (น้ำเงิน) และ AC2 (ส้ม) แชร์ r_maintenance pool เดียวกัน · แต่ละ aircraft มี transition ของตัวเอง</p>
+<div class="wrap">
+<svg id="svg" xmlns="http://www.w3.org/2000/svg" width="1100" height="720"></svg>
+</div>
+
+<script>
+const svg = document.getElementById('svg');
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k,v] of Object.entries(attrs||{})) e.setAttribute(k,v);
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+// markers
+const defs = el('defs');
+[['ab','#1d4ed8'],['ao','#d97706'],['ag','#15803d'],['ar','#c2410c'],['agr','#6b7280']].forEach(([id,color])=>{
+  const m = el('marker',{id,'markerWidth':'9','markerHeight':'9','refX':'7','refY':'4','orient':'auto'});
+  m.appendChild(el('polygon',{points:'0,0 8,4 0,8',fill:color}));
+  defs.appendChild(m);
+});
+svg.appendChild(defs);
+svg.appendChild(el('rect',{x:0,y:0,width:1100,height:720,fill:'#f8fafc'}));
+
+const PR=24, TW=62, TH=24;
+
+// ── helpers ──
+function place(x,y,label,tokens,bg,stroke,sub) {
+  const g=el('g');
+  g.appendChild(el('circle',{cx:x,cy:y,r:PR,fill:bg||'#dbeafe',stroke:stroke||'#1d4ed8','stroke-width':'2.2'}));
+  if(tokens===1){g.appendChild(el('circle',{cx:x,cy:y,r:'6',fill:'#111'}));}
+  else if(tokens>1){g.appendChild(el('text',{x,y:y+1,'text-anchor':'middle','dominant-baseline':'middle','font-size':'14','font-weight':'bold',fill:stroke||'#1d4ed8'},String(tokens)));}
+  if(label) g.appendChild(el('text',{x,y:y+PR+13,'text-anchor':'middle','font-size':'10','font-weight':'600',fill:'#1e3a5f'},label));
+  if(sub)   g.appendChild(el('text',{x,y:y+PR+24,'text-anchor':'middle','font-size':'8.5',fill:'#64748b'},sub));
+  return g;
+}
+function trans(x,y,label,bg,stroke,time) {
+  const g=el('g');
+  g.appendChild(el('rect',{x:x-TW/2,y:y-TH/2,width:TW,height:TH,fill:bg||'#fef9c3',stroke:stroke||'#854d0e','stroke-width':'2.2',rx:'4'}));
+  g.appendChild(el('text',{x,y:time?y-4:y+1,'text-anchor':'middle','dominant-baseline':'middle','font-size':'8.5','font-weight':'bold',fill:stroke||'#854d0e'},label));
+  if(time) g.appendChild(el('text',{x,y:y+7,'text-anchor':'middle','dominant-baseline':'middle','font-size':'7.5',fill:stroke||'#854d0e'},time));
+  return g;
+}
+function line(x1,y1,x2,y2,color,mk,dash,s1,s2) {
+  const r1=s1??PR+2,r2=s2??PR+2;
+  const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
+  if(len<1)return el('g');
+  const sx=x1+dx/len*r1,sy=y1+dy/len*r1;
+  const ex=x2-dx/len*r2,ey=y2-dy/len*r2;
+  const g=el('g');
+  const ln=el('line',{x1:sx,y1:sy,x2:ex,y2:ey,stroke:color,'stroke-width':'2','marker-end':'url(#'+mk+')'});
+  if(dash) ln.setAttribute('stroke-dasharray',dash);
+  g.appendChild(ln);
+  return g;
+}
+function wline(x1,y1,x2,y2,color,mk,w,dash,s1,s2) {
+  const g=line(x1,y1,x2,y2,color,mk,dash,s1,s2);
+  if(w){
+    const r1=s1??PR+2,r2=s2??PR+2;
+    const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
+    const sx=x1+dx/len*r1,sy=y1+dy/len*r1;
+    const ex=x2-dx/len*r2,ey=y2-dy/len*r2;
+    const mx=(sx+ex)/2,my=(sy+ey)/2;
+    g.appendChild(el('rect',{x:mx-12,y:my-8,width:24,height:15,fill:'white',opacity:'0.92',rx:'3'}));
+    g.appendChild(el('text',{x:mx,y:my+1,'text-anchor':'middle','dominant-baseline':'middle','font-size':'9.5','font-weight':'bold',fill:color},'w='+w));
+  }
+  return g;
+}
+function curve(d,color,mk,dash) {
+  const g=el('g');
+  const p=el('path',{d,fill:'none',stroke:color,'stroke-width':'2','marker-end':'url(#'+mk+')'});
+  if(dash) p.setAttribute('stroke-dasharray',dash);
+  g.appendChild(p);
+  return g;
+}
+function label(x,y,txt,color,size,bold){
+  return el('text',{x,y,'text-anchor':'middle','font-size':size||'10','font-weight':bold?'bold':'normal',fill:color||'#374151'},txt);
+}
+
+// ════════════════════════════════════════════
+//  COORDINATES
+// ════════════════════════════════════════════
+//
+//  TOP ROW: fork1(left) --- docked --- fork2(right)
+//  MID:     p170           pool           p171
+//  LOWER:   sf1  ss1       (pool)       sf2  ss2
+//  ACT:     f_m1 s_m1                   f_m2 s_m2
+//  END:     ef1  es1                    ef2  es2
+//  BOT:     d_m1                        d_m2
+//
+const Xfork1=120, Xfork2=980, Xpool=550;
+const Ydocked=60;
+const Yp=160;     // p170, p171
+const Ysf=270;    // sf/ss transitions
+const Yact=380;   // activity places
+const Yend=480;   // ef/es transitions
+const Ydone=590;  // d_maintenance places
+
+// AC1 columns
+const Xsf1=220, Xss1=350;
+// AC2 columns
+const Xsf2=880, Xss2=750;
+
+// ── BACKGROUND ZONES ──
+// AC1 zone
+svg.appendChild(el('rect',{x:60,y:100,width:380,height:540,fill:'#eff6ff',stroke:'#bfdbfe','stroke-width':'1.5',rx:'14',opacity:'0.5'}));
+svg.appendChild(label(250,125,'Aircraft 1 (AC1)','#1d4ed8','12',true));
+
+// AC2 zone
+svg.appendChild(el('rect',{x:660,y:100,width:380,height:540,fill:'#fff7ed',stroke:'#fed7aa','stroke-width':'1.5',rx:'14',opacity:'0.5'}));
+svg.appendChild(label(850,125,'Aircraft 2 (AC2)','#d97706','12',true));
+
+// Pool zone
+svg.appendChild(el('rect',{x:430,y:130,width:240,height:120,fill:'#fdf4ff',stroke:'#e9d5ff','stroke-width':'1.5',rx:'12'}));
+svg.appendChild(label(550,148,'Shared Worker Pool','#7e22ce','10',true));
+
+// ── ARCS (draw first) ──
+
+// docked → fork1
+svg.appendChild(line(Xpool,Ydocked,Xfork1,Yp-50,'#6b7280','agr','4,3',PR+2,TH/2+2));
+// docked → fork2
+svg.appendChild(line(Xpool,Ydocked,Xfork2,Yp-50,'#6b7280','agr','4,3',PR+2,TH/2+2));
+
+// fork1 → p170
+svg.appendChild(line(Xfork1,Yp-50,200,Yp,'#1d4ed8','ab',null,TH/2+2,PR+2));
+// fork2 → p171
+svg.appendChild(line(Xfork2,Yp-50,900,Yp,'#d97706','ao',null,TH/2+2,PR+2));
+
+// pool → sf1 (w=10)
+svg.appendChild(wline(Xpool-PR,Yp+50,Xsf1+TW/2,Ysf,'#15803d','ag',10,null,4,TH/2+2));
+// pool → ss1 (w=2)
+svg.appendChild(wline(Xpool-PR+10,Yp+55,Xss1+TW/2,Ysf,'#c2410c','ar',2,'5,3',4,TH/2+2));
+// pool → sf2 (w=10)
+svg.appendChild(wline(Xpool+PR,Yp+50,Xsf2-TW/2,Ysf,'#15803d','ag',10,null,4,TH/2+2));
+// pool → ss2 (w=2)
+svg.appendChild(wline(Xpool+PR-10,Yp+55,Xss2-TW/2,Ysf,'#c2410c','ar',2,'5,3',4,TH/2+2));
+
+// p170 → sf1
+svg.appendChild(wline(200,Yp,Xsf1-TW/2,Ysf,'#1d4ed8','ab',1,null,PR+2,TH/2+2));
+// p170 → ss1
+svg.appendChild(wline(200,Yp,Xss1-TW/2,Ysf,'#1d4ed8','ab',1,null,PR+2,TH/2+2));
+// p171 → sf2
+svg.appendChild(wline(900,Yp,Xsf2+TW/2,Ysf,'#d97706','ao',1,null,PR+2,TH/2+2));
+// p171 → ss2
+svg.appendChild(wline(900,Yp,Xss2+TW/2,Ysf,'#d97706','ao',1,null,PR+2,TH/2+2));
+
+// sf1 → f_maintaining1
+svg.appendChild(line(Xsf1,Ysf+TH/2,Xsf1,Yact-PR,'#1d4ed8','ab',null,TH/2+2,PR+2));
+// ss1 → s_maintain1
+svg.appendChild(line(Xss1,Ysf+TH/2,Xss1,Yact-PR,'#1d4ed8','ab','5,3',TH/2+2,PR+2));
+// sf2 → f_maintaining2
+svg.appendChild(line(Xsf2,Ysf+TH/2,Xsf2,Yact-PR,'#d97706','ao',null,TH/2+2,PR+2));
+// ss2 → s_maintain2
+svg.appendChild(line(Xss2,Ysf+TH/2,Xss2,Yact-PR,'#d97706','ao','5,3',TH/2+2,PR+2));
+
+// f_maintaining1 → ef1
+svg.appendChild(line(Xsf1,Yact+PR,Xsf1,Yend-TH/2,'#1d4ed8','ab',null,PR+2,TH/2+2));
+// s_maintain1 → es1
+svg.appendChild(line(Xss1,Yact+PR,Xss1,Yend-TH/2,'#1d4ed8','ab','5,3',PR+2,TH/2+2));
+// f_maintaining2 → ef2
+svg.appendChild(line(Xsf2,Yact+PR,Xsf2,Yend-TH/2,'#d97706','ao',null,PR+2,TH/2+2));
+// s_maintain2 → es2
+svg.appendChild(line(Xss2,Yact+PR,Xss2,Yend-TH/2,'#d97706','ao','5,3',PR+2,TH/2+2));
+
+// ef1 → d_maint1
+svg.appendChild(line(Xsf1,Yend+TH/2,Xsf1,Ydone-PR,'#1d4ed8','ab',null,TH/2+2,PR+2));
+// es1 → d_maint1
+svg.appendChild(curve('M'+Xss1+','+(Yend+TH/2)+' Q'+Xss1+','+(Ydone-40)+' '+Xsf1+','+(Ydone-PR),'#1d4ed8','ab'));
+// ef2 → d_maint2
+svg.appendChild(line(Xsf2,Yend+TH/2,Xsf2,Ydone-PR,'#d97706','ao',null,TH/2+2,PR+2));
+// es2 → d_maint2
+svg.appendChild(curve('M'+Xss2+','+(Yend+TH/2)+' Q'+Xss2+','+(Ydone-40)+' '+Xsf2+','+(Ydone-PR),'#d97706','ao'));
+
+// RETURN arcs: ef1 → pool (w=10)
+svg.appendChild(curve(
+  'M'+Xsf1+','+(Yend-TH/2)+' C'+(Xsf1-40)+','+(Yend-80)+' '+(Xpool-120)+','+(Yp+110)+' '+(Xpool-PR-5)+','+(Yp+60),
+  '#15803d','ag','4,4'));
+// return label
+{const mx=Xsf1-60, my=(Yend+Yp+60)/2-20;
+svg.appendChild(el('rect',{x:mx-14,y:my-8,width:28,height:14,fill:'white',opacity:'0.9',rx:'3'}));
+svg.appendChild(el('text',{x:mx,y:my+1,'text-anchor':'middle','dominant-baseline':'middle','font-size':'9','font-weight':'bold',fill:'#15803d'},'w=10'));}
+
+// es1 → pool (w=2)
+svg.appendChild(curve(
+  'M'+Xss1+','+(Yend-TH/2)+' C'+(Xss1-20)+','+(Yend-60)+' '+(Xpool-100)+','+(Yp+120)+' '+(Xpool-PR)+','+(Yp+65),
+  '#c2410c','ar','4,4'));
+{const mx=Xss1-30, my=(Yend+Yp)/2+20;
+svg.appendChild(el('rect',{x:mx-10,y:my-8,width:20,height:14,fill:'white',opacity:'0.9',rx:'3'}));
+svg.appendChild(el('text',{x:mx,y:my+1,'text-anchor':'middle','dominant-baseline':'middle','font-size':'9','font-weight':'bold',fill:'#c2410c'},'w=2'));}
+
+// ef2 → pool (w=10)
+svg.appendChild(curve(
+  'M'+Xsf2+','+(Yend-TH/2)+' C'+(Xsf2+40)+','+(Yend-80)+' '+(Xpool+120)+','+(Yp+110)+' '+(Xpool+PR+5)+','+(Yp+60),
+  '#15803d','ag','4,4'));
+{const mx=Xsf2+60, my=(Yend+Yp+60)/2-20;
+svg.appendChild(el('rect',{x:mx-14,y:my-8,width:28,height:14,fill:'white',opacity:'0.9',rx:'3'}));
+svg.appendChild(el('text',{x:mx,y:my+1,'text-anchor':'middle','dominant-baseline':'middle','font-size':'9','font-weight':'bold',fill:'#15803d'},'w=10'));}
+
+// es2 → pool (w=2)
+svg.appendChild(curve(
+  'M'+Xss2+','+(Yend-TH/2)+' C'+(Xss2+20)+','+(Yend-60)+' '+(Xpool+100)+','+(Yp+120)+' '+(Xpool+PR)+','+(Yp+65),
+  '#c2410c','ar','4,4'));
+{const mx=Xss2+30, my=(Yend+Yp)/2+20;
+svg.appendChild(el('rect',{x:mx-10,y:my-8,width:20,height:14,fill:'white',opacity:'0.9',rx:'3'}));
+svg.appendChild(el('text',{x:mx,y:my+1,'text-anchor':'middle','dominant-baseline':'middle','font-size':'9','font-weight':'bold',fill:'#c2410c'},'w=2'));}
+
+// ── NODES ──
+svg.appendChild(place(Xpool, Ydocked, 'docked', 1, '#f0fdf4','#15803d','(token = aircraft arrived)'));
+svg.appendChild(trans(Xfork1, Yp-50, 'fork1','#fef9c3','#854d0e'));
+svg.appendChild(el('text',{x:Xfork1,y:Yp-50+TH/2+12,'text-anchor':'middle','font-size':'8',fill:'#92400e'},'AND-split'));
+svg.appendChild(trans(Xfork2, Yp-50, 'fork2','#fef9c3','#854d0e'));
+svg.appendChild(el('text',{x:Xfork2,y:Yp-50+TH/2+12,'text-anchor':'middle','font-size':'8',fill:'#92400e'},'AND-split'));
+
+// worker pool
+{
+  const g=el('g');
+  g.appendChild(el('circle',{cx:Xpool,cy:Yp+60,r:PR+10,fill:'#fdf4ff',stroke:'#7e22ce','stroke-width':'2.8'}));
+  g.appendChild(el('text',{x:Xpool,y:Yp+55,'text-anchor':'middle','dominant-baseline':'middle','font-size':'17','font-weight':'bold',fill:'#7e22ce'},'10'));
+  g.appendChild(el('text',{x:Xpool,y:Yp+70,'text-anchor':'middle','dominant-baseline':'middle','font-size':'8.5',fill:'#7e22ce'},'workers'));
+  g.appendChild(el('text',{x:Xpool,y:Yp+60+PR+10+14,'text-anchor':'middle','font-size':'10','font-weight':'600',fill:'#581c87'},'r_maintenance'));
+  g.appendChild(el('text',{x:Xpool,y:Yp+60+PR+10+26,'text-anchor':'middle','font-size':'8.5',fill:'#6b21a8'},'(shared pool)'));
+  svg.appendChild(g);
+}
+
+svg.appendChild(place(200, Yp, 'p170', 1, '#dbeafe','#1d4ed8','AC1 ready'));
+svg.appendChild(place(900, Yp, 'p171', 1, '#fef3c7','#d97706','AC2 ready'));
+
+// AC1 transitions
+svg.appendChild(trans(Xsf1, Ysf, 'sf_maint_1','#dcfce7','#15803d'));
+svg.appendChild(el('text',{x:Xsf1,y:Ysf+TH/2+11,'text-anchor':'middle','font-size':'8',fill:'#166534'},'fast (w=10)'));
+svg.appendChild(trans(Xss1, Ysf, 'ss_maint_1','#fff7ed','#c2410c'));
+svg.appendChild(el('text',{x:Xss1,y:Ysf+TH/2+11,'text-anchor':'middle','font-size':'8',fill:'#9a3412'},'slow (w=2)'));
+
+// AC2 transitions
+svg.appendChild(trans(Xsf2, Ysf, 'sf_maint_2','#dcfce7','#15803d'));
+svg.appendChild(el('text',{x:Xsf2,y:Ysf+TH/2+11,'text-anchor':'middle','font-size':'8',fill:'#166534'},'fast (w=10)'));
+svg.appendChild(trans(Xss2, Ysf, 'ss_maint_2','#fff7ed','#c2410c'));
+svg.appendChild(el('text',{x:Xss2,y:Ysf+TH/2+11,'text-anchor':'middle','font-size':'8',fill:'#9a3412'},'slow (w=2)'));
+
+// activity places
+svg.appendChild(place(Xsf1, Yact, 'f_maint_1', 0,'#dcfce7','#15803d','AC1 fast'));
+svg.appendChild(place(Xss1, Yact, 's_maint_1', 0,'#fff7ed','#c2410c','AC1 slow'));
+svg.appendChild(place(Xsf2, Yact, 'f_maint_2', 0,'#dcfce7','#15803d','AC2 fast'));
+svg.appendChild(place(Xss2, Yact, 's_maint_2', 0,'#fff7ed','#c2410c','AC2 slow'));
+
+// end transitions
+svg.appendChild(trans(Xsf1, Yend, 'ef_maint_1','#dcfce7','#15803d','[28,32]'));
+svg.appendChild(trans(Xss1, Yend, 'es_maint_1','#fff7ed','#c2410c','[58,62]'));
+svg.appendChild(trans(Xsf2, Yend, 'ef_maint_2','#dcfce7','#15803d','[28,32]'));
+svg.appendChild(trans(Xss2, Yend, 'es_maint_2','#fff7ed','#c2410c','[58,62]'));
+
+// done places
+svg.appendChild(place(Xsf1, Ydone, 'd_maint_1', 0,'#f0fdf4','#15803d','AC1 done'));
+svg.appendChild(place(Xsf2, Ydone, 'd_maint_2', 0,'#f0fdf4','#15803d','AC2 done'));
+
+// ── CONTENTION CALLOUT ──
+svg.appendChild(el('rect',{x:430,y:430,width:240,height:100,fill:'#fef2f2',stroke:'#fca5a5','stroke-width':'1.5',rx:'8'}));
+svg.appendChild(label(550,450,'⚠ Resource Contention','#991b1b','10',true));
+svg.appendChild(label(550,466,'AC1 fast (w=10) → pool = 0','#7f1d1d','9'));
+svg.appendChild(label(550,480,'AC2 ไม่สามารถ fast ได้','#7f1d1d','9'));
+svg.appendChild(label(550,494,'AC2 ต้องรอ หรือเลือก slow','#7f1d1d','9'));
+svg.appendChild(label(550,510,'→ จุดที่ deadlock อาจเกิด','#991b1b','9',true));
+
+// ── LEGEND ──
+const LX=20, LY=640;
+svg.appendChild(el('rect',{x:LX,y:LY,width:440,height:62,fill:'white',stroke:'#e2e8f0','stroke-width':'1',rx:'6'}));
+svg.appendChild(label(LX+10+50,LY+13,'Legend','#374151','10',true));
+const litems=[
+  {color:'#1d4ed8',dash:null,label:'AC1 main flow'},
+  {color:'#d97706',dash:null,label:'AC2 main flow'},
+  {color:'#15803d',dash:'4,4',label:'Return workers (fast w=10)'},
+  {color:'#c2410c',dash:'4,4',label:'Return workers (slow w=2)'},
+];
+litems.forEach(({color,dash,label:lbl},i)=>{
+  const col = i<2 ? 0 : 1;
+  const row = i%2;
+  const x=LX+14+col*220, y=LY+28+row*16;
+  const ln=el('line',{x1:x,y1:y,x2:x+28,y2:y,stroke:color,'stroke-width':'2'});
+  if(dash) ln.setAttribute('stroke-dasharray',dash);
+  svg.appendChild(ln);
+  svg.appendChild(el('polygon',{points:(x+28)+','+(y-3)+' '+(x+36)+','+y+' '+(x+28)+','+(y+3),fill:color}));
+  svg.appendChild(el('text',{x:x+40,y:y+1,'dominant-baseline':'middle','font-size':'9',fill:'#374151'},lbl));
+});
+
+svg.setAttribute('height','710');
+</script>
+</body>
+</html>

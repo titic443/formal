@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>Aircraft Turnaround — Worker Pool Model</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; padding: 16px; background: #f0f4f8; font-family: 'Segoe UI', Arial, sans-serif; }
+h1 { margin: 0 0 2px; font-size: 16px; color: #1e3a5f; }
+.sub { margin: 0 0 10px; font-size: 11px; color: #666; }
+.legend {
+  display: flex; flex-wrap: wrap; gap: 14px;
+  margin-bottom: 12px; font-size: 11px;
+  background: #fff; padding: 8px 16px;
+  border: 1px solid #dde3ea; border-radius: 8px; align-items: center;
+}
+.legend-item { display: flex; align-items: center; gap: 5px; }
+.wrap { overflow: auto; background: #fff; border-radius: 10px; box-shadow: 0 2px 16px rgba(0,0,0,.13); }
+</style>
+</head>
+<body>
+<h1>✈ Aircraft Turnaround — Worker Pool Model (2 Aircraft)</h1>
+<p class="sub">แทน 1 token team ด้วย N-token worker pool · Fast transition (กิน workers มาก = เร็ว) · Slow transition (กิน workers น้อย = ช้า)</p>
+
+<div class="legend">
+  <div class="legend-item">
+    <svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="#dbeafe" stroke="#1d4ed8" stroke-width="2"/></svg> Place
+  </div>
+  <div class="legend-item">
+    <svg width="44" height="22"><rect x="1" y="4" width="42" height="14" fill="#fef9c3" stroke="#854d0e" stroke-width="2" rx="2"/></svg> Transition
+  </div>
+  <div class="legend-item">
+    <svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="#fce7f3" stroke="#9d174d" stroke-width="2.5"/></svg> Worker Pool
+  </div>
+  <div class="legend-item">
+    <svg width="44" height="22"><rect x="1" y="4" width="42" height="14" fill="#dcfce7" stroke="#15803d" stroke-width="2" rx="2"/></svg> Fast transition
+  </div>
+  <div class="legend-item">
+    <svg width="44" height="22"><rect x="1" y="4" width="42" height="14" fill="#fff7ed" stroke="#c2410c" stroke-width="2" rx="2"/></svg> Slow transition
+  </div>
+  <div class="legend-item">
+    <svg width="14" height="14"><circle cx="7" cy="7" r="5" fill="#111"/></svg> Token
+  </div>
+  <div class="legend-item">
+    <svg width="38" height="14">
+      <line x1="0" y1="7" x2="28" y2="7" stroke="#1d4ed8" stroke-width="2"/>
+      <polygon points="28,3 38,7 28,11" fill="#1d4ed8"/>
+      <text x="13" y="6" font-size="8" fill="#1d4ed8" text-anchor="middle">w=10</text>
+    </svg> Arc weight
+  </div>
+</div>
+
+<div class="wrap">
+  <svg id="pn" xmlns="http://www.w3.org/2000/svg"></svg>
+</div>
+
+<script>
+const W = 2100, H = 980;
+const svg = document.getElementById('pn');
+svg.setAttribute('width', W);
+svg.setAttribute('height', H);
+const NS = 'http://www.w3.org/2000/svg';
+
+const PR = 24, TW = 52, TH = 22;
+
+function el(tag, attrs, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k,v] of Object.entries(attrs||{})) e.setAttribute(k,v);
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+// ── defs ──
+const defs = el('defs');
+function mkArrow(id, color) {
+  const m = el('marker', {id, markerWidth:'8', markerHeight:'8', refX:'6', refY:'3', orient:'auto'});
+  m.appendChild(el('polygon', {points:'0,0 6,3 0,6', fill:color}));
+  defs.appendChild(m);
+}
+mkArrow('arr_blue','#1d4ed8');
+mkArrow('arr_orange','#d97706');
+mkArrow('arr_green','#15803d');
+mkArrow('arr_red','#c2410c');
+mkArrow('arr_purple','#7e22ce');
+mkArrow('arr_gray','#555');
+svg.appendChild(defs);
+
+// ── background ──
+svg.appendChild(el('rect',{x:0,y:0,width:W,height:H,fill:'#f8fafc'}));
+
+// ── helpers ──
+function place(x,y,label,tokens,color,textColor,small) {
+  const g = el('g');
+  const r = small ? PR-4 : PR;
+  g.appendChild(el('circle',{cx:x,cy:y,r,fill:color||'#dbeafe',stroke:'#1d4ed8','stroke-width':'2'}));
+  if (tokens > 0) {
+    if (tokens === 1) {
+      g.appendChild(el('circle',{cx:x,cy:y,r:'5',fill:'#111'}));
+    } else if (tokens <= 5) {
+      const offs = [[-5,-5],[5,-5],[0,5],[-6,2],[6,2]].slice(0,tokens);
+      offs.forEach(([dx,dy])=>g.appendChild(el('circle',{cx:x+dx,cy:y+dy,r:'3.5',fill:'#111'})));
+    } else {
+      g.appendChild(el('text',{x,y:y+1,'text-anchor':'middle','dominant-baseline':'middle',
+        'font-size':'11','font-weight':'bold',fill:'#111'},String(tokens)));
+    }
+  }
+  if (label) {
+    g.appendChild(el('text',{x,y:y+r+12,'text-anchor':'middle','font-size':'10',fill:textColor||'#1e3a5f'},label));
+  }
+  return g;
+}
+
+function workerPlace(x,y,label,workers,maxWorkers) {
+  const g = el('g');
+  g.appendChild(el('circle',{cx:x,cy:y,r:PR+4,fill:'#fce7f3',stroke:'#9d174d','stroke-width':'2.5'}));
+  // show worker count as bold text
+  g.appendChild(el('text',{x,y:y-3,'text-anchor':'middle','dominant-baseline':'middle',
+    'font-size':'13','font-weight':'bold',fill:'#9d174d'},String(workers)));
+  g.appendChild(el('text',{x,y:y+9,'text-anchor':'middle','dominant-baseline':'middle',
+    'font-size':'8',fill:'#9d174d'},'workers'));
+  if (label) {
+    const lines = label.split('\n');
+    lines.forEach((ln,i)=>{
+      g.appendChild(el('text',{x,y:y+PR+4+12+i*12,'text-anchor':'middle','font-size':'10',fill:'#7c1041'},ln));
+    });
+  }
+  return g;
+}
+
+function transition(x,y,label,color,borderColor,timed) {
+  const g = el('g');
+  g.appendChild(el('rect',{x:x-TW/2,y:y-TH/2,width:TW,height:TH,
+    fill:color||'#fef9c3',stroke:borderColor||'#854d0e','stroke-width':'2',rx:'3'}));
+  if (timed) {
+    g.appendChild(el('text',{x,y:y-1,'text-anchor':'middle','dominant-baseline':'middle',
+      'font-size':'9','font-weight':'bold',fill:borderColor||'#854d0e'},label));
+    g.appendChild(el('text',{x,y:y+8,'text-anchor':'middle','dominant-baseline':'middle',
+      'font-size':'7.5',fill:borderColor||'#854d0e'},timed));
+  } else {
+    g.appendChild(el('text',{x,y:y+1,'text-anchor':'middle','dominant-baseline':'middle',
+      'font-size':'9','font-weight':'bold',fill:borderColor||'#854d0e'},label));
+  }
+  return g;
+}
+
+function arrow(x1,y1,x2,y2,color,dash,weight,markerId) {
+  const mid = markerId || ('arr_'+{
+    '#1d4ed8':'blue','#d97706':'orange','#15803d':'green',
+    '#c2410c':'red','#7e22ce':'purple','#555':'gray'
+  }[color] || 'blue');
+  const g = el('g');
+  // shorten line to not overlap nodes
+  const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
+  const shrink=PR+2;
+  const sx=x1+dx/len*shrink, sy=y1+dy/len*shrink;
+  const ex=x2-dx/len*shrink, ey=y2-dy/len*shrink;
+  const line = el('line',{x1:sx,y1:sy,x2:ex,y2:ey,
+    stroke:color,'stroke-width':'1.8',
+    'marker-end':`url(#${mid})`});
+  if (dash) line.setAttribute('stroke-dasharray',dash);
+  g.appendChild(line);
+  if (weight) {
+    const mx=(sx+ex)/2, my=(sy+ey)/2;
+    g.appendChild(el('rect',{x:mx-10,y:my-7,width:20,height:13,fill:'white',opacity:'0.85',rx:'3'}));
+    g.appendChild(el('text',{x:mx,y:my+1,'text-anchor':'middle','dominant-baseline':'middle',
+      'font-size':'9','font-weight':'bold',fill:color},`w=${weight}`));
+  }
+  return g;
+}
+
+function arrowTo(x1,y1,x2,y2,color,dash,weight,fromTrans,toTrans) {
+  // fromTrans/toTrans: if true, use TH/2 shrink instead of PR
+  const g = el('g');
+  const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
+  const shrinkFrom = fromTrans ? TH/2+2 : PR+2;
+  const shrinkTo   = toTrans   ? TH/2+2 : PR+2;
+  const sx=x1+dx/len*shrinkFrom, sy=y1+dy/len*shrinkFrom;
+  const ex=x2-dx/len*shrinkTo,   ey=y2-dy/len*shrinkTo;
+  const mid = 'arr_'+({
+    '#1d4ed8':'blue','#d97706':'orange','#15803d':'green',
+    '#c2410c':'red','#7e22ce':'purple','#555':'gray'
+  }[color]||'blue');
+  const line = el('line',{x1:sx,y1:sy,x2:ex,y2:ey,
+    stroke:color,'stroke-width':'1.8','marker-end':`url(#${mid})`});
+  if (dash) line.setAttribute('stroke-dasharray',dash);
+  g.appendChild(line);
+  if (weight) {
+    const mx=(sx+ex)/2, my=(sy+ey)/2;
+    g.appendChild(el('rect',{x:mx-10,y:my-7,width:20,height:13,fill:'white',opacity:'0.85',rx:'3'}));
+    g.appendChild(el('text',{x:mx,y:my+1,'text-anchor':'middle','dominant-baseline':'middle',
+      'font-size':'9','font-weight':'bold',fill:color},`w=${weight}`));
+  }
+  return g;
+}
+
+// curved arrow helper
+function curvedArrow(x1,y1,x2,y2,cx,cy,color,dash,weight) {
+  const g = el('g');
+  const mid = 'arr_'+({
+    '#1d4ed8':'blue','#d97706':'orange','#15803d':'green',
+    '#c2410c':'red','#7e22ce':'purple','#555':'gray'
+  }[color]||'blue');
+  const path = el('path',{
+    d:`M${x1},${y1} Q${cx},${cy} ${x2},${y2}`,
+    fill:'none',stroke:color,'stroke-width':'1.6',
+    'marker-end':`url(#${mid})`
+  });
+  if (dash) path.setAttribute('stroke-dasharray',dash);
+  g.appendChild(path);
+  if (weight) {
+    const mx=(x1+x2)/2*0.5+cx*0.5, my=(y1+y2)/2*0.5+cy*0.5;
+    g.appendChild(el('rect',{x:mx-10,y:my-7,width:20,height:13,fill:'white',opacity:'0.85',rx:'3'}));
+    g.appendChild(el('text',{x:mx,y:my+1,'text-anchor':'middle','dominant-baseline':'middle',
+      'font-size':'9','font-weight':'bold',fill:color},`w=${weight}`));
+  }
+  return g;
+}
+
+// ════════════════════════════════════════════════════════
+//  LAYOUT CONSTANTS
+// ════════════════════════════════════════════════════════
+// 5 tasks: unload, clean, fuel, catering, maint
+const TASKS = [
+  { name:'unload',    label:'Unload',    color:'#dbeafe', bord:'#1d4ed8', workers:6,  fast:4, slow:2, tFast:'20 min', tSlow:'40 min' },
+  { name:'clean',     label:'Clean',     color:'#dcfce7', bord:'#15803d', workers:8,  fast:6, slow:2, tFast:'25 min', tSlow:'50 min' },
+  { name:'fuel',      label:'Fuel',      color:'#fef9c3', bord:'#854d0e', workers:4,  fast:3, slow:1, tFast:'15 min', tSlow:'30 min' },
+  { name:'catering',  label:'Catering',  color:'#fff7ed', bord:'#c2410c', workers:8,  fast:6, slow:2, tFast:'30 min', tSlow:'60 min' },
+  { name:'maint',     label:'Maint.',    color:'#f3e8ff', bord:'#7e22ce', workers:10, fast:10,slow:2, tFast:'30 min', tSlow:'60 min' },
+];
+
+const N = TASKS.length; // 5
+
+// x-zones
+const X_A1     = 130;   // aircraft 1 places
+const X_FORK1  = 260;   // fork1 transition
+const X_SFAST  = 430;   // s_task_fast transition col
+const X_SSLOW  = 560;   // s_task_slow transition col
+const X_POOL   = 720;   // worker pool col
+const X_ACT    = 900;   // activity places
+const X_END    = 1050;  // e_task transitions
+const X_DONE   = 1180;  // d_task places
+// mirror for AC2
+const X_DONE2  = 2100-X_DONE;
+const X_END2   = 2100-X_END;
+const X_ACT2   = 2100-X_ACT;
+const X_POOL2  = X_POOL; // same pool!
+const X_SFAST2 = 2100-X_SFAST;
+const X_SSLOW2 = 2100-X_SSLOW;
+const X_FORK2  = 2100-X_FORK1;
+const X_A2     = 2100-X_A1;
+
+// y-zones: top area for fork/available, then 5 task rows, then done at bottom
+const Y_TOP    = 80;
+const Y_AVAIL  = 160;
+const Y_FORK   = 250;
+
+const TASK_Y_START = 360;
+const TASK_Y_GAP   = 110;
+
+function taskY(i) { return TASK_Y_START + i * TASK_Y_GAP; }
+
+const Y_ALLDONE = TASK_Y_START + N * TASK_Y_GAP + 30;
+const Y_GSE     = Y_ALLDONE + 80;
+
+// ════════════════════════════════════════════════════════
+//  SECTION LABELS
+// ════════════════════════════════════════════════════════
+function sectionLabel(x,y,txt,color) {
+  svg.appendChild(el('text',{x,y,'text-anchor':'middle','font-size':'11','font-weight':'bold',fill:color||'#374151'},txt));
+}
+
+sectionLabel(X_A1, 35, 'Aircraft 1', '#1d4ed8');
+sectionLabel(X_FORK1, 35, 'Fork', '#374151');
+sectionLabel((X_SFAST+X_SSLOW)/2, 35, 'Start (fast/slow)', '#374151');
+sectionLabel(X_POOL, 35, 'Worker Pool', '#9d174d');
+sectionLabel(X_ACT, 35, 'Activity', '#374151');
+sectionLabel(X_END, 35, 'End', '#374151');
+sectionLabel(X_DONE, 35, 'Done', '#374151');
+sectionLabel((X_SFAST2+X_SSLOW2)/2, 35, 'Start (fast/slow)', '#374151');
+sectionLabel(X_FORK2, 35, 'Fork', '#374151');
+sectionLabel(X_A2, 35, 'Aircraft 2', '#d97706');
+
+// vertical dividers
+[X_POOL-50, X_POOL+50].forEach(x=>{
+  svg.appendChild(el('line',{x1:x,y1:50,x2:x,y2:H-20,stroke:'#e2e8f0','stroke-width':'1','stroke-dasharray':'4,4'}));
+});
+
+// ════════════════════════════════════════════════════════
+//  AVAILABLE & FORK
+// ════════════════════════════════════════════════════════
+// AC1
+svg.appendChild(place(X_A1, Y_AVAIL, 'available1', 1, '#dbeafe', '#1e3a5f'));
+svg.appendChild(transition(X_FORK1, Y_FORK, 'fork1', '#fef9c3', '#854d0e'));
+svg.appendChild(arrowTo(X_A1, Y_AVAIL, X_FORK1, Y_FORK, '#1d4ed8', null, null, false, true));
+
+// fork1 label
+svg.appendChild(el('text',{x:X_FORK1,y:Y_FORK+22,'text-anchor':'middle','font-size':'8',fill:'#555'},'AND-split'));
+
+// AC2
+svg.appendChild(place(X_A2, Y_AVAIL, 'available2', 1, '#fef3c7', '#92400e'));
+svg.appendChild(transition(X_FORK2, Y_FORK, 'fork2', '#fef9c3', '#854d0e'));
+svg.appendChild(arrowTo(X_A2, Y_AVAIL, X_FORK2, Y_FORK, '#d97706', null, null, false, true));
+svg.appendChild(el('text',{x:X_FORK2,y:Y_FORK+22,'text-anchor':'middle','font-size':'8',fill:'#555'},'AND-split'));
+
+// ════════════════════════════════════════════════════════
+//  WORKER POOLS (center column) + TASK ROWS
+// ════════════════════════════════════════════════════════
+TASKS.forEach((t, i) => {
+  const y = taskY(i);
+  const blue = '#1d4ed8', orange = '#d97706';
+
+  // ── Worker pool (shared) ──
+  svg.appendChild(workerPlace(X_POOL, y, `${t.label}\nworkers`, t.workers, t.workers));
+
+  // ── AC1 side ──
+  // s_task_fast (AC1)
+  svg.appendChild(transition(X_SFAST, y-22, `s_${t.name}_fast`, '#dcfce7', '#15803d', t.tFast));
+  // s_task_slow (AC1)
+  svg.appendChild(transition(X_SSLOW, y+22, `s_${t.name}_slow`, '#fff7ed', '#c2410c', t.tSlow));
+
+  // fork1 → s_fast, fork1 → s_slow
+  svg.appendChild(curvedArrow(X_FORK1, Y_FORK, X_SFAST, y-22, X_FORK1+20, y-40, blue, null, null));
+  svg.appendChild(curvedArrow(X_FORK1, Y_FORK, X_SSLOW, y+22, X_FORK1+20, y+40, blue, '5,3', null));
+
+  // pool → s_fast (weight=fast)
+  svg.appendChild(arrowTo(X_POOL-PR-4, y, X_SFAST+TW/2, y-22, '#15803d', null, t.fast, false, true));
+  // pool → s_slow (weight=slow)
+  svg.appendChild(arrowTo(X_POOL-PR-4, y, X_SSLOW+TW/2, y+22, '#c2410c', '5,3', t.slow, false, true));
+
+  // Activity place (AC1)
+  svg.appendChild(place(X_ACT, y, `${t.name}ing`, 0, t.color, t.bord));
+
+  // s_fast → activity, s_slow → activity
+  svg.appendChild(arrowTo(X_SFAST-TW/2, y-22, X_ACT, y-10, blue, null, null, true, false));
+  svg.appendChild(arrowTo(X_SSLOW-TW/2, y+22, X_ACT, y+10, blue, '5,3', null, true, false));
+
+  // e_task transition (AC1)
+  svg.appendChild(transition(X_END, y, `e_${t.name}`, t.color, t.bord));
+  svg.appendChild(arrowTo(X_ACT, y, X_END, y, blue, null, null, false, true));
+
+  // d_task place (AC1)
+  svg.appendChild(place(X_DONE, y, `d_${t.name}`, 0, t.color, t.bord));
+  svg.appendChild(arrowTo(X_END+TW/2, y, X_DONE, y, blue, null, null, true, false));
+
+  // return workers: e_task → pool (weight=fast, dashed return)
+  svg.appendChild(curvedArrow(X_END+TW/2, y-TH/2, X_POOL-PR-4, y-12,
+    (X_END+X_POOL)/2, y-55, '#15803d', '3,3', t.fast));
+
+  // ── AC2 side (mirror) ──
+  // s_task_fast (AC2)
+  svg.appendChild(transition(X_SFAST2, y-22, `s_${t.name}_fast2`, '#dcfce7', '#15803d', t.tFast));
+  // s_task_slow (AC2)
+  svg.appendChild(transition(X_SSLOW2, y+22, `s_${t.name}_slow2`, '#fff7ed', '#c2410c', t.tSlow));
+
+  // fork2 → s_fast2, fork2 → s_slow2
+  svg.appendChild(curvedArrow(X_FORK2, Y_FORK, X_SFAST2, y-22, X_FORK2-20, y-40, orange, null, null));
+  svg.appendChild(curvedArrow(X_FORK2, Y_FORK, X_SSLOW2, y+22, X_FORK2-20, y+40, orange, '5,3', null));
+
+  // pool → s_fast2
+  svg.appendChild(arrowTo(X_POOL+PR+4, y, X_SFAST2-TW/2, y-22, '#15803d', null, t.fast, false, true));
+  // pool → s_slow2
+  svg.appendChild(arrowTo(X_POOL+PR+4, y, X_SSLOW2-TW/2, y+22, '#c2410c', '5,3', t.slow, false, true));
+
+  // Activity place (AC2)
+  svg.appendChild(place(X_ACT2, y, `${t.name}ing2`, 0, t.color, t.bord));
+
+  svg.appendChild(arrowTo(X_SFAST2+TW/2, y-22, X_ACT2, y-10, orange, null, null, true, false));
+  svg.appendChild(arrowTo(X_SSLOW2+TW/2, y+22, X_ACT2, y+10, orange, '5,3', null, true, false));
+
+  // e_task2
+  svg.appendChild(transition(X_END2, y, `e_${t.name}2`, t.color, t.bord));
+  svg.appendChild(arrowTo(X_ACT2, y, X_END2, y, orange, null, null, false, true));
+
+  // d_task2 place
+  svg.appendChild(place(X_DONE2, y, `d_${t.name}2`, 0, t.color, t.bord));
+  svg.appendChild(arrowTo(X_END2-TW/2, y, X_DONE2, y, orange, null, null, true, false));
+
+  // return workers from e_task2 → pool
+  svg.appendChild(curvedArrow(X_END2-TW/2, y-TH/2, X_POOL+PR+4, y-12,
+    (X_END2+X_POOL)/2, y-55, '#15803d', '3,3', t.fast));
+});
+
+// ════════════════════════════════════════════════════════
+//  ALL_DONE + GSE_DONE
+// ════════════════════════════════════════════════════════
+// all_done_1
+svg.appendChild(transition(X_FORK1, Y_ALLDONE, 'all_done1', '#fef9c3', '#854d0e'));
+svg.appendChild(el('text',{x:X_FORK1,y:Y_ALLDONE+22,'text-anchor':'middle','font-size':'8',fill:'#555'},'AND-join'));
+TASKS.forEach((t,i)=>{
+  const y = taskY(i);
+  svg.appendChild(curvedArrow(X_DONE, y, X_FORK1, Y_ALLDONE, X_DONE-30, (y+Y_ALLDONE)/2, '#1d4ed8', null, null));
+});
+
+// all_done_2
+svg.appendChild(transition(X_FORK2, Y_ALLDONE, 'all_done2', '#fef9c3', '#854d0e'));
+svg.appendChild(el('text',{x:X_FORK2,y:Y_ALLDONE+22,'text-anchor':'middle','font-size':'8',fill:'#555'},'AND-join'));
+TASKS.forEach((t,i)=>{
+  const y = taskY(i);
+  svg.appendChild(curvedArrow(X_DONE2, y, X_FORK2, Y_ALLDONE, X_DONE2+30, (y+Y_ALLDONE)/2, '#d97706', null, null));
+});
+
+// GSE_Done
+svg.appendChild(place(W/2, Y_GSE, 'GSE_Done', 0, '#dcfce7', '#15803d'));
+svg.appendChild(arrowTo(X_FORK1+TW/2, Y_ALLDONE, W/2, Y_GSE, '#1d4ed8', null, null, true, false));
+svg.appendChild(arrowTo(X_FORK2-TW/2, Y_ALLDONE, W/2, Y_GSE, '#d97706', null, null, true, false));
+
+// ════════════════════════════════════════════════════════
+//  LEGEND PANEL: Worker pool explanation (right side)
+// ════════════════════════════════════════════════════════
+const LX = 1700, LY = 80;
+svg.appendChild(el('rect',{x:LX,y:LY,width:360,height:260,fill:'#f8fafc',
+  stroke:'#cbd5e1','stroke-width':'1.5',rx:'8'}));
+svg.appendChild(el('text',{x:LX+12,y:LY+20,'font-size':'12','font-weight':'bold',fill:'#1e3a5f'},'Worker Pool Logic'));
+
+const notes = [
+  '• Pool place มี N tokens = N workers พร้อม',
+  '• s_task_fast กิน w=N workers ทั้งหมด',
+  '  → ใช้เวลาน้อย (fast)',
+  '• s_task_slow กิน w=2 workers เท่านั้น',
+  '  → ใช้เวลามากกว่า (slow)',
+  '• e_task คืน workers กลับ pool ทุกครั้ง',
+  '',
+  'ตัวอย่าง Maintenance:',
+  '  10 คน (fast) → 30 นาที',
+  '   2 คน (slow) → 60 นาที',
+  '',
+  'Resource Contention:',
+  '• AC1 & AC2 แย่ง pool เดียวกัน',
+  '• ถ้า AC1 ใช้ workers ครบ → AC2',
+  '  ต้องรอ หรือเลือก slow path',
+];
+notes.forEach((n,i)=>{
+  svg.appendChild(el('text',{x:LX+14,y:LY+40+i*13,'font-size':'10',fill:'#374151'},n));
+});
+
+// Worker pool table
+const TX = LX+12, TY2 = LY+285;
+svg.appendChild(el('text',{x:TX,y:TY2,'font-size':'11','font-weight':'bold',fill:'#1e3a5f'},'Worker Pool Sizes:'));
+const poolData = [
+  ['Task','Workers','Fast (w)','Slow (w)','Fast time','Slow time'],
+  ...TASKS.map(t=>[t.label, String(t.workers), String(t.fast), String(t.slow), t.tFast, t.tSlow])
+];
+poolData.forEach((row,ri)=>{
+  const cols = [0,60,115,155,200,260];
+  row.forEach((cell,ci)=>{
+    svg.appendChild(el('text',{x:TX+cols[ci],y:TY2+18+ri*14,
+      'font-size': ri===0 ? '9' : '9.5',
+      'font-weight': ri===0 ? 'bold' : 'normal',
+      fill: ri===0 ? '#374151' : '#1e3a5f'},cell));
+  });
+  if (ri===0) {
+    svg.appendChild(el('line',{x1:TX,y1:TY2+22,x2:TX+330,y2:TY2+22,
+      stroke:'#cbd5e1','stroke-width':'1'}));
+  }
+});
+
+svg.setAttribute('height', String(Y_GSE + 60));
+</script>
+</body>
+</html>

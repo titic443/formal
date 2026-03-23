@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>Maintenance Flow v2</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; padding: 24px; background: #f0f4f8; font-family: 'Segoe UI', Arial, sans-serif; }
+h1 { font-size: 15px; color: #1e3a5f; margin: 0 0 4px; }
+p  { font-size: 11px; color: #666; margin: 0 0 14px; }
+.wrap { background: #fff; border-radius: 12px; box-shadow: 0 2px 16px rgba(0,0,0,.12); overflow: auto; padding: 12px; }
+</style>
+</head>
+<body>
+<h1>✈ Maintenance Flow — แยก place fast/slow (v2)</h1>
+<p>do_maintain_fast และ do_maintain_slow แยกกัน → end transition รู้ว่ามาจาก path ไหน</p>
+<div class="wrap">
+<svg id="svg" xmlns="http://www.w3.org/2000/svg" width="900" height="620"></svg>
+</div>
+<script>
+const svg = document.getElementById('svg');
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k,v] of Object.entries(attrs||{})) e.setAttribute(k,v);
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+// markers
+const defs = el('defs');
+[['ab','#1d4ed8'],['ag','#15803d'],['ar','#c2410c'],['agr','#6b7280'],['apu','#7e22ce']].forEach(([id,color])=>{
+  const m = el('marker',{id,'markerWidth':'9','markerHeight':'9','refX':'7','refY':'4','orient':'auto'});
+  m.appendChild(el('polygon',{points:'0,0 8,4 0,8',fill:color}));
+  defs.appendChild(m);
+});
+svg.appendChild(defs);
+svg.appendChild(el('rect',{x:0,y:0,width:900,height:620,fill:'#f8fafc'}));
+
+const PR=26, TW=64, TH=26;
+
+// ── node helpers ──
+function place(x,y,label,tokens,bg,stroke,sub) {
+  const g = el('g');
+  g.appendChild(el('circle',{cx:x,cy:y,r:PR,fill:bg||'#dbeafe',stroke:stroke||'#1d4ed8','stroke-width':'2.2'}));
+  if (tokens===1) {
+    g.appendChild(el('circle',{cx:x,cy:y,r:'6',fill:'#111'}));
+  } else if (tokens>1) {
+    g.appendChild(el('text',{x,y:y+1,'text-anchor':'middle','dominant-baseline':'middle',
+      'font-size':'14','font-weight':'bold',fill:'#7c1041'},String(tokens)));
+  }
+  if (label) g.appendChild(el('text',{x,y:y+PR+14,'text-anchor':'middle','font-size':'10.5','font-weight':'600',fill:'#1e3a5f'},label));
+  if (sub)   g.appendChild(el('text',{x,y:y+PR+26,'text-anchor':'middle','font-size':'9',fill:'#64748b'},sub));
+  return g;
+}
+function workerPlace(x,y,n) {
+  const g = el('g');
+  g.appendChild(el('circle',{cx:x,cy:y,r:PR+8,fill:'#fce7f3',stroke:'#9d174d','stroke-width':'2.8'}));
+  g.appendChild(el('text',{x,y:y-5,'text-anchor':'middle','dominant-baseline':'middle',
+    'font-size':'18','font-weight':'bold',fill:'#9d174d'},String(n)));
+  g.appendChild(el('text',{x,y:y+10,'text-anchor':'middle','dominant-baseline':'middle',
+    'font-size':'9',fill:'#9d174d'},'workers'));
+  g.appendChild(el('text',{x,y:y+PR+8+14,'text-anchor':'middle','font-size':'10.5','font-weight':'600',fill:'#7c1041'},'maint_workers'));
+  return g;
+}
+function trans(x,y,label,bg,stroke,time) {
+  const g = el('g');
+  g.appendChild(el('rect',{x:x-TW/2,y:y-TH/2,width:TW,height:TH,
+    fill:bg||'#fef9c3',stroke:stroke||'#854d0e','stroke-width':'2.2',rx:'4'}));
+  g.appendChild(el('text',{x,y:time?y-4:y+1,'text-anchor':'middle','dominant-baseline':'middle',
+    'font-size':'9','font-weight':'bold',fill:stroke||'#854d0e'},label));
+  if (time) g.appendChild(el('text',{x,y:y+7,'text-anchor':'middle','dominant-baseline':'middle',
+    'font-size':'8',fill:stroke||'#854d0e'},time));
+  return g;
+}
+
+// ── arc helpers ──
+function line(x1,y1,x2,y2,color,mk,dash,s1,s2) {
+  const r1=s1??PR+2, r2=s2??PR+2;
+  const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
+  if(len<1) return el('g');
+  const sx=x1+dx/len*r1, sy=y1+dy/len*r1;
+  const ex=x2-dx/len*r2, ey=y2-dy/len*r2;
+  const g=el('g');
+  const ln=el('line',{x1:sx,y1:sy,x2:ex,y2:ey,stroke:color,'stroke-width':'2','marker-end':'url(#'+mk+')'});
+  if(dash) ln.setAttribute('stroke-dasharray',dash);
+  g.appendChild(ln);
+  return g;
+}
+function wline(x1,y1,x2,y2,color,mk,w,dash,s1,s2) {
+  const g=line(x1,y1,x2,y2,color,mk,dash,s1,s2);
+  if(w) {
+    const r1=s1??PR+2, r2=s2??PR+2;
+    const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
+    const sx=x1+dx/len*r1,sy=y1+dy/len*r1;
+    const ex=x2-dx/len*r2,ey=y2-dy/len*r2;
+    const mx=(sx+ex)/2,my=(sy+ey)/2;
+    g.appendChild(el('rect',{x:mx-12,y:my-8,width:24,height:15,fill:'white',opacity:'0.9',rx:'3'}));
+    g.appendChild(el('text',{x:mx,y:my+1,'text-anchor':'middle','dominant-baseline':'middle',
+      'font-size':'9.5','font-weight':'bold',fill:color},'w='+w));
+  }
+  return g;
+}
+function curve(d,color,mk,dash) {
+  const g=el('g');
+  const p=el('path',{d,fill:'none',stroke:color,'stroke-width':'2','marker-end':'url(#'+mk+')'});
+  if(dash) p.setAttribute('stroke-dasharray',dash);
+  g.appendChild(p);
+  return g;
+}
+function wlabel(x,y,txt,color) {
+  const g=el('g');
+  g.appendChild(el('rect',{x:x-13,y:y-8,width:26,height:15,fill:'white',opacity:'0.9',rx:'3'}));
+  g.appendChild(el('text',{x,y:y+1,'text-anchor':'middle','dominant-baseline':'middle',
+    'font-size':'9.5','font-weight':'bold',fill:color||'#15803d'},txt));
+  return g;
+}
+
+// ════════════════════════════
+//  COORDINATES
+// ════════════════════════════
+//
+//  fork (top-center)          x=450, y=60
+//
+//  fast_maintain              x=250, y=170   (green trans)
+//  slow_maintain              x=650, y=170   (red trans)
+//
+//  maint_workers (pool)       x=450, y=170   (center)
+//
+//  do_maintain_fast           x=250, y=300   (fast activity place)
+//  do_maintain_slow           x=650, y=300   (slow activity place)
+//
+//  fast_end_maintain          x=250, y=420   [28,32]
+//  slow_end_maintain          x=650, y=420   [58,62]
+//
+//  done                       x=450, y=530
+
+const Xfork=450, Yfork=65;
+const Xpoo=450,  Ypoo=185;
+const Xfas=250,  Yfas=185;  // fast_maintain transition
+const Xslo=650,  Yslo=185;  // slow_maintain transition
+const Xdf=250,   Ydf=315;   // do_maintain_fast
+const Xds=650,   Yds=315;   // do_maintain_slow
+const Xef=250,   Yef=430;   // fast_end_maintain
+const Xes=650,   Yes=430;   // slow_end_maintain
+const Xdon=450,  Ydon=545;
+
+// ── ARCS (drawn first) ──
+
+// fork → fast_maintain
+svg.appendChild(curve(
+  'M'+Xfork+','+(Yfork+TH/2)+' C'+Xfork+','+(Yfork+80)+' '+(Xfas+TW/2)+','+(Yfas-50)+' '+(Xfas+TW/2)+','+(Yfas-TH/2),
+  '#15803d','ag'));
+
+// fork → slow_maintain
+svg.appendChild(curve(
+  'M'+Xfork+','+(Yfork+TH/2)+' C'+Xfork+','+(Yfork+80)+' '+(Xslo-TW/2)+','+(Yslo-50)+' '+(Xslo-TW/2)+','+(Yslo-TH/2),
+  '#c2410c','ar','5,4'));
+
+// pool → fast_maintain  w=10
+svg.appendChild(wline(Xpoo-PR-8, Ypoo, Xfas+TW/2, Yfas, '#15803d','ag',10,null,2,TH/2+2));
+
+// pool → slow_maintain  w=2
+svg.appendChild(wline(Xpoo+PR+8, Ypoo, Xslo-TW/2, Yslo, '#c2410c','ar',2,'5,4',2,TH/2+2));
+
+// fast_maintain → do_maintain_fast
+svg.appendChild(line(Xfas, Yfas+TH/2, Xdf, Ydf-PR, '#15803d','ag',null,2,2));
+
+// slow_maintain → do_maintain_slow
+svg.appendChild(line(Xslo, Yslo+TH/2, Xds, Yds-PR, '#c2410c','ar','5,4',2,2));
+
+// do_maintain_fast → fast_end_maintain
+svg.appendChild(line(Xdf, Ydf+PR, Xef, Yef-TH/2, '#15803d','ag',null,2,2));
+
+// do_maintain_slow → slow_end_maintain
+svg.appendChild(line(Xds, Yds+PR, Xes, Yes-TH/2, '#c2410c','ar','5,4',2,2));
+
+// fast_end_maintain → done
+svg.appendChild(curve(
+  'M'+(Xef+TW/2)+','+(Yef)+' C'+(Xef+100)+','+(Yef+60)+' '+(Xdon-60)+','+(Ydon-30)+' '+(Xdon-PR)+','+Ydon,
+  '#1d4ed8','ab'));
+
+// slow_end_maintain → done
+svg.appendChild(curve(
+  'M'+(Xes-TW/2)+','+(Yes)+' C'+(Xes-100)+','+(Yes+60)+' '+(Xdon+60)+','+(Ydon-30)+' '+(Xdon+PR)+','+Ydon,
+  '#1d4ed8','ab'));
+
+// fast_end_maintain → pool (return w=10, dashed green)
+svg.appendChild(curve(
+  'M'+(Xef-TW/2)+','+Yef+' C'+(Xef-80)+','+(Yef-60)+' '+(Xpoo-80)+','+(Ypoo+80)+' '+(Xpoo-PR-8)+','+Ypoo,
+  '#15803d','ag','4,4'));
+svg.appendChild(wlabel(Xef-100, (Yef+Ypoo)/2, 'w=10', '#15803d'));
+
+// slow_end_maintain → pool (return w=2, dashed red)
+svg.appendChild(curve(
+  'M'+(Xes+TW/2)+','+Yes+' C'+(Xes+80)+','+(Yes-60)+' '+(Xpoo+80)+','+(Ypoo+80)+' '+(Xpoo+PR+8)+','+Ypoo,
+  '#c2410c','ar','4,4'));
+svg.appendChild(wlabel(Xes+100, (Yes+Ypoo)/2, 'w=2', '#c2410c'));
+
+// ── NODES ──
+svg.appendChild(trans(Xfork, Yfork, 'fork', '#fef9c3', '#854d0e'));
+svg.appendChild(el('text',{x:Xfork,y:Yfork+TH/2+13,'text-anchor':'middle','font-size':'8.5',fill:'#92400e'},'AND-split'));
+
+svg.appendChild(workerPlace(Xpoo, Ypoo, 10));
+
+svg.appendChild(trans(Xfas, Yfas, 'fast_maintain', '#dcfce7', '#15803d'));
+svg.appendChild(trans(Xslo, Yslo, 'slow_maintain', '#fff7ed', '#c2410c'));
+
+svg.appendChild(place(Xdf, Ydf, 'do_maintain_fast', 0, '#dcfce7', '#15803d', 'fast path active'));
+svg.appendChild(place(Xds, Yds, 'do_maintain_slow', 0, '#fff7ed', '#c2410c', 'slow path active'));
+
+svg.appendChild(trans(Xef, Yef, 'fast_end_maintain', '#dcfce7', '#15803d', '[28,32] min'));
+svg.appendChild(trans(Xes, Yes, 'slow_end_maintain', '#fff7ed', '#c2410c', '[58,62] min'));
+
+svg.appendChild(place(Xdon, Ydon, 'done', 0, '#f0fdf4', '#15803d'));
+
+// ── ANNOTATION BOXES ──
+
+// fast box
+svg.appendChild(el('rect',{x:80,y:250,width:130,height:42,fill:'#f0fdf4',stroke:'#86efac','stroke-width':'1.5',rx:'6'}));
+svg.appendChild(el('text',{x:145,y:267,'text-anchor':'middle','font-size':'9.5','font-weight':'bold',fill:'#15803d'},'✓ Fast Path'));
+svg.appendChild(el('text',{x:145,y:280,'text-anchor':'middle','font-size':'9',fill:'#166534'},'token แยกอยู่ที่นี่'));
+svg.appendChild(el('text',{x:145,y:292,'text-anchor':'middle','font-size':'9',fill:'#166534'},'→ fast_end fire ได้เท่านั้น'));
+
+// slow box
+svg.appendChild(el('rect',{x:690,y:250,width:130,height:42,fill:'#fff7ed',stroke:'#fdba74','stroke-width':'1.5',rx:'6'}));
+svg.appendChild(el('text',{x:755,y:267,'text-anchor':'middle','font-size':'9.5','font-weight':'bold',fill:'#c2410c'},'✓ Slow Path'));
+svg.appendChild(el('text',{x:755,y:280,'text-anchor':'middle','font-size':'9',fill:'#9a3412'},'token แยกอยู่ที่นี่'));
+svg.appendChild(el('text',{x:755,y:292,'text-anchor':'middle','font-size':'9',fill:'#9a3412'},'→ slow_end fire ได้เท่านั้น'));
+
+// key insight box (center)
+svg.appendChild(el('rect',{x:310,y:355,width:280,height:54,fill:'#eff6ff',stroke:'#93c5fd','stroke-width':'1.5',rx:'8'}));
+svg.appendChild(el('text',{x:450,y:373,'text-anchor':'middle','font-size':'10','font-weight':'bold',fill:'#1d4ed8'},'💡 Key Insight'));
+svg.appendChild(el('text',{x:450,y:388,'text-anchor':'middle','font-size':'9.5',fill:'#1e3a5f'},'place แยกกัน = transition รู้ที่มา'));
+svg.appendChild(el('text',{x:450,y:401,'text-anchor':'middle','font-size':'9',fill:'#374151'},'fast_end consume จาก do_maintain_fast เท่านั้น'));
+
+// ── LEGEND ──
+const items=[
+  {color:'#15803d', dash:null,  label:'Fast path (w=10, 30 min)'},
+  {color:'#c2410c', dash:'5,4', label:'Slow path (w=2, 60 min)'},
+  {color:'#1d4ed8', dash:null,  label:'Main flow → done'},
+  {color:'#15803d', dash:'4,4', label:'Return workers to pool'},
+];
+svg.appendChild(el('rect',{x:10,y:535,width:260,height:68,fill:'white',stroke:'#e2e8f0','stroke-width':'1',rx:'6'}));
+items.forEach(({color,dash,label},i)=>{
+  const y=535+14+i*13;
+  const ln=el('line',{x1:20,y1:y,x2:48,y2:y,stroke:color,'stroke-width':'2'});
+  if(dash) ln.setAttribute('stroke-dasharray',dash);
+  svg.appendChild(ln);
+  svg.appendChild(el('polygon',{points:'48,'+(y-3)+' 56,'+y+' 48,'+(y+3),fill:color}));
+  svg.appendChild(el('text',{x:62,y:y+1,'dominant-baseline':'middle','font-size':'9',fill:'#374151'},label));
+});
+
+svg.setAttribute('height','600');
+</script>
+</body>
+</html>

@@ -1,0 +1,143 @@
+p 535.0 140.0 onRunway 0 n
+t 415.0 500.0 fork1 0 w n
+p 470.0 565.0 r_maintenance 0 n
+p 360.0 565.0 r_fuel 0 n
+t 360.0 620.0 s_fuel 0 w n
+t 470.0 620.0 s_maintenance 0 w n
+t 415.0 620.0 s_catering 0 w n
+p 360.0 675.0 fueling 0 n
+p 415.0 675.0 catering 0 n
+p 470.0 675.0 maintaining 0 n
+p 720.0 190.0 bay 2 n
+t 360.0 725.0 e_fueling 0 w n
+t 415.0 725.0 e_catering 0 w n
+p 715.0 80.0 runway 1 n
+t 1210.0 90.0 takeoff e 0 w n {} ne
+t 535.0 190.0 dock 0 w n
+p 535.0 235.0 docked 0 e
+p 1210.0 325.0 departing 0 n
+t 1215.0 565.0 pushback e 0 w n {} ne
+p 415.0 565.0 r_catering 0 n
+t 410.0 870.0 all_done_1 0 w n
+p 360.0 800.0 d_fuel 0 n
+t 470.0 730.0 e_maintanence 0 w n
+p 410.0 800.0 d_catering 0 n
+p 470.0 800.0 d_maintenance 0 n
+p 660.0 545.0 maintenance_team 1 n
+p 655.0 625.0 catering_team 1 n
+p 655.0 725.0 fuel_team 1 n
+t 535.0 285.0 GSE 0 w n
+t 950.0 505.0 t0 0 w n
+p 1005.0 570.0 p0 0 n
+p 895.0 570.0 p1 0 n
+t 895.0 625.0 t1 0 w n
+t 1005.0 625.0 t2 0 w n
+t 950.0 625.0 t3 0 w n
+p 895.0 680.0 p2 0 n
+p 950.0 680.0 p3 0 n
+p 1005.0 680.0 p4 0 n
+t 895.0 730.0 t4 0 w n
+t 950.0 730.0 t5 0 w n
+p 950.0 570.0 p6 0 n
+p 895.0 805.0 p7 0 n
+t 1005.0 735.0 t7 0 w n
+p 945.0 805.0 p8 0 n
+p 1005.0 805.0 p9 0 n
+t 535.0 80.0 landing w 0 w n {} ne
+t 945.0 870.0 t6 0 w n
+p 365.0 80.0 p11 0 n
+p 160.0 50.0 aircraft3 1 n
+t 260.0 65.0 t10 0 w n
+t 260.0 140.0 t8 0 w n
+p 165.0 165.0 aircraft1 1 n
+t 345.0 180.0 t9 0 w n
+p 320.0 250.0 aircraft2 1 n
+p 1210.0 1045.0 boarding 0 n
+p 665.0 945.0 GSE_Done 0 n
+t 665.0 1045.0 board 0 w n
+p 200.0 285.0 appron_resource 2 n
+p 665.0 345.0 p10 0 n
+e p11 landing 1 n
+e t10 p11 1 n
+e aircraft3 t10 1 n
+e t9 p11 1 n
+e t8 p11 1 n
+e aircraft2 t9 1 n
+e aircraft1 t8 1 n
+e p10 t0 1 n
+e p10 fork1 1 n
+e GSE p10 1 n
+e p1 t2 ?-1 n
+e p1 t3 ?-1 n
+e t4 fuel_team 1 n
+e t5 catering_team 1 n
+e t7 maintenance_team 1 n
+e t4 p7 1 n
+e t5 p8 1 n
+e t7 p9 1 n
+e p4 t7 1 n
+e p3 t5 1 n
+e p2 t4 1 n
+e p7 t6 1 n
+e p8 t6 1 n
+e p9 t6 1 n
+e t6 GSE_Done 1 n
+e catering_team t3 1 n
+e fuel_team t1 1 n
+e maintenance_team t2 1 n
+e t0 p0 1 n
+e t0 p6 1 n
+e t0 p1 1 n
+e t2 p4 1 n
+e t3 p3 1 n
+e t1 p2 1 n
+e p1 t1 1 n
+e p6 t3 1 n
+e p0 t2 1 n
+e pushback bay 1 n
+e runway takeoff 1 n
+e landing onRunway 1 n
+e onRunway dock 1 n
+e bay dock 1 n
+e dock runway 1 n
+e dock docked 1 n
+e docked GSE 1 n
+e runway landing 1 n
+e r_maintenance s_maintenance 1 n
+e r_catering s_catering 1 n
+e r_fuel s_fuel 1 n
+e s_fuel fueling 1 n
+e s_catering catering 1 n
+e s_maintenance maintaining 1 n
+e fork1 r_fuel 1 n
+e fork1 r_catering 1 n
+e fork1 r_maintenance 1 n
+e appron_resource GSE 1 n
+e GSE_Done board 1 n
+e boarding pushback 1 n
+e pushback departing 1 n
+e maintenance_team s_maintenance 1 n
+e fuel_team s_fuel 1 n
+e catering_team s_catering 1 n
+e all_done_1 GSE_Done 1 n
+e d_maintenance all_done_1 1 n
+e d_catering all_done_1 1 n
+e d_fuel all_done_1 1 n
+e fueling e_fueling 1 n
+e catering e_catering 1 n
+e maintaining e_maintanence 1 n
+e e_maintanence d_maintenance 1 n
+e e_catering d_catering 1 n
+e e_fueling d_fuel 1 n
+e e_maintanence maintenance_team 1 n
+e e_catering catering_team 1 n
+e e_fueling fuel_team 1 n
+e departing takeoff 1 n
+e takeoff 0.635594652 58.21689696 runway 0.9528032743 56.22420451 1 n
+e r_fuel s_catering ?-1 n
+e r_fuel s_maintenance ?-1 n
+e board boarding 1 n
+e board 0.500243356 654.0007645 appron_resource 0.4955052932 177.0706074 1 n
+h formal_v4
+
+
