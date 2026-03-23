@@ -236,11 +236,10 @@ decidability properties required for exhaustive state space analysis.
 
 A marking $M$ is a \textit{dead marking} (deadlock) if no transition is enabled
 under $M$. A Petri Net is \textit{deadlock-free} if no reachable marking (other
-than an intended terminal state) is a dead marking. A transition $t$ is
-\textit{live} ($L_4$-live) if from every reachable marking, there exists a
-firing sequence that enables $t$. For our purposes, we require at minimum
-$L_1$-liveness for all ground handling transitions, ensuring every process can
-complete. A place $p$ is \textit{$k$-bounded} if $M(p) \leq k$ for all
+than an intended terminal state) is a dead marking. A transition $t$ is \textit{$L_1$-live} if there exists at least one firing
+sequence from $M_0$ in which $t$ fires. We require $L_1$-liveness for all
+ground handling transitions, ensuring every service task completes at least
+once before the system reaches its terminal state. A place $p$ is \textit{$k$-bounded} if $M(p) \leq k$ for all
 $M \in R(M_0)$. A bounded Petri Net has a finite reachability graph, enabling
 exhaustive state space analysis in TINA.
 
@@ -251,11 +250,14 @@ exhaustive state space analysis in TINA.
 
 \subsection{System Overview}
 
-We model an airport scenario comprising two aircraft (A1, A2) sharing one gate,
-one runway, and five pools of ground service workers: an unloading team, a
-cleaning team, a fueling team, a catering team, and a maintenance team. Each
-aircraft progresses through three operational phases as summarised in
-Table~\ref{tab:phases}.
+We model an airport scenario comprising three aircraft (A1, A2, A3) sharing
+one runway, two bays, and two apron resources, together with five pools of
+ground service workers: an unloading team, a cleaning team, a fueling team,
+a catering team, and a maintenance team. The two bays constrain concurrent
+ground handling to at most two aircraft simultaneously; the third aircraft
+awaits runway and apron access via the scheduling and landing sub-net before
+proceeding to its bay. Each aircraft progresses through three operational
+phases as summarised in Table~\ref{tab:phases}.
 
 \begin{table*}[tp]
   \caption{Aircraft Turnaround Operational Phases}
@@ -266,14 +268,14 @@ Table~\ref{tab:phases}.
     \textbf{Phase} & \textbf{Key States} & \textbf{Description} \\
     \midrule
     Arrival
-      & Landing $\to$ Taxi $\to$ Dock $\to$ Depart
-      & Aircraft arrives, taxis to gate, passengers deplane \\[4pt]
+      & Schedule $\to$ Request Landing $\to$ Landing $\to$ Taxi $\to$ Deplane $\to$ Dock
+      & Aircraft is scheduled, lands, taxis to bay, passengers deplane \\[4pt]
     Ground Handling
       & 5 parallel tasks (concurrent)
       & Refueling, catering, cleaning, unloading, maintenance \\[4pt]
     Departure
-      & W\&B $\to$ Board $\to$ Pushback $\to$ Takeoff
-      & Preparation complete, aircraft departs \\
+      & Board $\to$ Pushback $\to$ Takeoff
+      & All ground tasks complete, aircraft boards and departs \\
     \bottomrule
   \end{tabular}
 \end{table*}
@@ -494,7 +496,7 @@ GSE operations to at most 2 across both aircraft, preventing the circular wait
 condition. The approach is analogous to the deadlock avoidance and liveness control
 techniques established in~\cite{b4,b5}. After applying this control mechanism, TINA confirms that no
 dead markings exist in the reachability graph other than the intended terminal
-state where both aircraft have completed takeoff.
+state where all aircraft have completed takeoff.
 
 \begin{figure}[htbp]
   \centering
