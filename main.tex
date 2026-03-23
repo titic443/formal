@@ -253,11 +253,16 @@ exhaustive state space analysis in TINA.
 We model an airport scenario comprising three aircraft (A1, A2, A3) sharing
 one runway, two bays, and two apron resources, together with five pools of
 ground service workers: an unloading team, a cleaning team, a fueling team,
-a catering team, and a maintenance team. The two bays constrain concurrent
-ground handling to at most two aircraft simultaneously; the third aircraft
-awaits runway and apron access via the scheduling and landing sub-net before
-proceeding to its bay. Each aircraft progresses through three operational
-phases as summarised in Table~\ref{tab:phases}.
+a catering team, and a maintenance team. Each aircraft has its own complete
+ground handling sub-net (fork1, fork2, fork3); however, the two apron
+resources ($p_{\mathit{appron\_resource}}$, initial marking~2) structurally
+prevent all three aircraft from entering ground handling concurrently. Each
+aircraft must acquire one apron resource token at the dock transition before
+proceeding to its assigned fork. Since only two tokens are available, at most
+two aircraft may simultaneously execute ground service tasks; the third must
+wait at the landing and taxi stage until a departing aircraft returns its
+apron resource token via the pushback transition. Each aircraft progresses
+through three operational phases as summarised in Table~\ref{tab:phases}.
 
 \begin{table*}[tp]
   \caption{Aircraft Turnaround Operational Phases}
@@ -267,15 +272,15 @@ phases as summarised in Table~\ref{tab:phases}.
     \toprule
     \textbf{Phase} & \textbf{Key States} & \textbf{Description} \\
     \midrule
-    Arrival
-      & Schedule $\to$ Request Landing $\to$ Landing $\to$ Taxi $\to$ Deplane $\to$ Dock
-      & Aircraft is scheduled, lands, taxis to bay, passengers deplane \\[4pt]
-    Ground Handling
-      & 5 parallel tasks (concurrent)
-      & Refueling, catering, cleaning, unloading, maintenance \\[4pt]
-    Departure
-      & Board $\to$ Pushback $\to$ Takeoff
-      & All ground tasks complete, aircraft boards and departs \\
+    \textbf{Arrival}
+      & \textbf{Schedule $\to$ Request Landing $\to$ Landing $\to$ Taxi $\to$ Deplane $\to$ Dock}
+      & \textbf{Aircraft is scheduled, lands, taxis to bay, passengers deplane} \\[4pt]
+    \textbf{Ground Handling}
+      & \textbf{5 parallel tasks (concurrent)}
+      & \textbf{Refueling, catering, cleaning, unloading, maintenance} \\[4pt]
+    \textbf{Departure}
+      & \textbf{Board $\to$ Pushback $\to$ Takeoff}
+      & \textbf{All ground tasks complete, aircraft boards and departs} \\
     \bottomrule
   \end{tabular}
 \end{table*}
@@ -285,12 +290,15 @@ phases as summarised in Table~\ref{tab:phases}.
 A central modelling contribution of this work is the replacement of binary team
 tokens with quantitative worker pool places. Each ground service team is
 represented by a place $p_{\mathit{workers}}^{\delta}$ with an initial marking
-equal to the team size $N^{\delta}$. Two task transitions are defined per service
-type: a \textit{fast} transition $t_{\mathit{fast}}$ that consumes all
-$N^{\delta}$ workers and fires within the interval $[\mathit{EFT}_f,
-\mathit{LFT}_f]$, and a \textit{slow} transition $t_{\mathit{slow}}$ that
-consumes only $W_{\min}$ workers (the minimum crew required) and fires within
-$[\mathit{EFT}_s, \mathit{LFT}_s] > [\mathit{EFT}_f, \mathit{LFT}_f]$.
+equal to the team size $N^{\delta}$. For every aircraft and every service type,
+two task transitions are defined: a \textit{fast} transition $t_{\mathit{fast}}$
+that consumes the majority of $N^{\delta}$ workers and fires within the interval
+$[\mathit{EFT}_f, \mathit{LFT}_f]$, and a \textit{slow} transition
+$t_{\mathit{slow}}$ that consumes only $W_{\min}$ workers (the minimum crew
+required) and fires within $[\mathit{EFT}_s, \mathit{LFT}_s] >
+[\mathit{EFT}_f, \mathit{LFT}_f]$. All three aircraft have access to both paths;
+the path taken at runtime depends on pool availability at the moment the
+aircraft enters ground handling.
 
 Critically, path separation is enforced by distinct activity places:
 $p_{\mathit{task\_fast}}$ receives a token only when $t_{\mathit{fast}}$ fires,
@@ -305,9 +313,11 @@ single activity place.
 \begin{figure*}[tp]
   \centering
   \includegraphics[width=\textwidth]{figure2.png}
-  \caption{Petri Net Model of Aircraft Turnaround Process showing two aircraft
-           sharing worker pools (clean\_team, fuel\_team, catering\_team,
-           unload\_team, maintenance\_team) with fast and slow service paths.}
+  \caption{Petri Net Model of Aircraft Turnaround Process showing three aircraft
+           (A1, A2, A3) sharing worker pools (clean\_team, fuel\_team,
+           catering\_team, unload\_team, maintenance\_team) with fast and slow
+           service paths. Concurrent ground handling is structurally limited to
+           two aircraft at a time by the apron resource tokens.}
   \label{fig:worker_pool}
 \end{figure*}
 
@@ -328,13 +338,17 @@ literature~\cite{b1,b2,b3}.
 
 \subsection{Resource Contention and Deadlock Conditions}
 
-Resource contention arises when both aircraft attempt to draw from the same
-worker pool concurrently. Consider the maintenance pool ($N = 10$): if A1 fires
+Resource contention arises when two concurrently active aircraft attempt to draw
+from the same worker pool. Consider the maintenance pool ($N = 10$): if A1 fires
 $t_{\mathit{maint\_fast}}$ (consuming all 10 workers), the pool is exhausted and
-A2 cannot fire $t_{\mathit{maint\_fast}}$. A2 may fire $t_{\mathit{maint\_slow}}$
-(consuming 2 workers) only if A1 has not already consumed all 10. The arc weights
-therefore create a natural priority ordering without the need for inhibitor arcs,
-preserving decidability.
+A2 cannot fire $t_{\mathit{maint\_fast}}$. A2 may still fire
+$t_{\mathit{maint\_slow}}$ (consuming 2 workers) if sufficient tokens remain;
+otherwise it must wait until A1 completes and returns the workers. The arc
+weights therefore create a natural priority ordering without the need for
+inhibitor arcs, preserving decidability. Note that because
+$p_{\mathit{appron\_resource}}$ limits concurrent ground handling to two aircraft,
+a third aircraft (A3) cannot enter this contention scenario until one of the
+active aircraft departs.
 
 A deadlock condition emerges when circular waiting occurs across multiple pools.
 For example: A1 holds the fueling pool and waits for the catering pool, while A2
@@ -492,7 +506,7 @@ To resolve the identified deadlock, we introduce a GSE Permit control place
 $P_{\mathit{GSE\_Permit}}$ with an initial marking of 2. Each ground handling
 transition that acquires workers must also consume one permit token; the
 corresponding completion transition returns the permit. This limits concurrent
-GSE operations to at most 2 across both aircraft, preventing the circular wait
+GSE operations to at most 2 across all concurrently active aircraft, preventing the circular wait
 condition. The approach is analogous to the deadlock avoidance and liveness control
 techniques established in~\cite{b4,b5}. After applying this control mechanism, TINA confirms that no
 dead markings exist in the reachability graph other than the intended terminal
