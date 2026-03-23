@@ -83,22 +83,22 @@ authorities (e.g., Airport of Thailand: AOT), air navigation service providers
 (e.g., AEROTHAI), and individual airline ground handling teams.
 
 The turnaround process can be divided into three main phases: (1)~\textit{Arrival
-and Docking}, where the aircraft lands, taxis to its assigned gate, and passengers
-disembark; (2)~\textit{Ground Handling}, where multiple service teams work in
+and Docking}, where the aircraft lands, taxis to its assigned bay, and passengers
+deplane; (2)~\textit{Ground Handling}, where multiple service teams work in
 parallel to prepare the aircraft for its next flight; and (3)~\textit{Departure
-Preparation}, where weight and balance calculations are completed, passengers
-board, and the aircraft pushes back for takeoff.
+Preparation}, where passengers board and the aircraft pushes back for takeoff.
 
 The ground handling phase is particularly challenging because it involves
-concurrent operations by multiple teams---all sharing limited resources such as
-apron space and ground support equipment (GSE)~\cite{b1,b2}, but these
-approaches cannot provide formal guarantees about deadlock or safety property
-correctness under all possible resource contention scenarios. When multiple
-concurrent processes compete for shared resources, the risk of deadlock arises:
-a situation where every process is waiting for a resource held by another,
-resulting in a complete standstill. For example, a fuel truck may block
-the path of a catering truck, which in turn blocks a baggage cart, which blocks
-the fuel truck, creating a circular wait condition.
+concurrent operations by multiple teams sharing limited resources such as
+apron space and ground support equipment (GSE)~\cite{b1,b2}. Simulation-based
+approaches have been widely used to analyse these operations, but they cannot
+provide formal guarantees about deadlock-freedom or safety property correctness
+under all possible resource contention scenarios. When multiple concurrent
+processes compete for shared resources, the risk of deadlock arises: a situation
+where every process is waiting for a resource held by another, resulting in a
+complete standstill. For example, a fuel truck may block the path of a catering
+truck, which in turn blocks a baggage cart, which blocks the fuel truck, creating
+a circular wait condition.
 
 Beyond deadlock, safety constraints impose strict ordering requirements. For
 instance, pushback must not occur while refueling is in progress, and boarding
@@ -283,14 +283,15 @@ A central modelling contribution of this work is the replacement of binary team
 tokens with quantitative worker pool places. Each ground service team is
 represented by a place $p_{\mathit{workers}}^{\delta}$ with an initial marking
 equal to the team size $N^{\delta}$. For every aircraft and every service type,
-two task transitions are defined: a \textit{fast} transition $t_{\mathit{fast}}$
-that consumes the majority of $N^{\delta}$ workers and fires within the interval
-$[\mathit{EFT}_f, \mathit{LFT}_f]$, and a \textit{slow} transition
-$t_{\mathit{slow}}$ that consumes only $W_{\min}$ workers (the minimum crew
-required) and fires within $[\mathit{EFT}_s, \mathit{LFT}_s] >
-[\mathit{EFT}_f, \mathit{LFT}_f]$. All three aircraft have access to both paths;
-the path taken at runtime depends on pool availability at the moment the
-aircraft enters ground handling.
+two task transitions are defined per service: a \textit{fast} transition
+(prefix \texttt{sf\_}) that consumes the majority of $N^{\delta}$ workers and
+fires within $[\mathit{EFT}_f, \mathit{LFT}_f]$, and a \textit{slow} transition
+(prefix \texttt{ss\_}) that consumes only $W_{\min}$ workers and fires within
+$[\mathit{EFT}_s, \mathit{LFT}_s] > [\mathit{EFT}_f, \mathit{LFT}_f]$.
+In the current model, A1 is assigned the fast path for all services
+(e.g., $\mathit{sf\_maintenance}$ consuming 10 workers), while A2 and A3
+are assigned the slow path (e.g., $\mathit{ss\_maintenance2}$ and
+$\mathit{ss\_maintenane3}$ each consuming 2 workers).
 
 Critically, path separation is enforced by distinct activity places:
 $p_{\mathit{task\_fast}}$ receives a token only when $t_{\mathit{fast}}$ fires,
@@ -383,13 +384,16 @@ using Linear Temporal Logic (LTL).
   \item \textbf{S1} (Runway Mutual Exclusion): No two aircraft shall use the
     runway simultaneously.
     \[
-      \mathbf{G}\,(\neg\,\mathit{Runway}_{A1} \wedge \neg\,\mathit{Runway}_{A2})
+      \mathbf{G}\,(\neg\,\mathit{Runway}_{A1} \wedge \neg\,\mathit{Runway}_{A2}
+        \wedge \neg\,\mathit{Runway}_{A3})
     \]
 
-  \item \textbf{S2} (Gate Mutual Exclusion): No two aircraft shall occupy the
-    gate simultaneously.
+  \item \textbf{S2} (Bay Mutual Exclusion): No more than two aircraft shall
+    occupy a bay simultaneously (enforced by $\mathit{bay}$ with initial
+    marking~2).
     \[
-      \mathbf{G}\,(\neg\,(\mathit{Bay}_{A1} \wedge \mathit{Bay}_{A2}))
+      \mathbf{G}\,(\neg\,(\mathit{Bay}_{A1} \wedge \mathit{Bay}_{A2}
+        \wedge \mathit{Bay}_{A3}))
     \]
 
   \item \textbf{S3} (No Pushback During Refueling): An aircraft must not begin
@@ -410,10 +414,11 @@ using Linear Temporal Logic (LTL).
   \item \textbf{S5} (Worker Pool Integrity): Worker pools must never be
     over-committed.
     \[
-      \mathbf{G}\,(M(p_{\mathit{maint\_workers}}) \geq 0)
+      \mathbf{G}\,(M(\mathit{maintenance\_team}) \geq 0)
     \]
-    for all pool places, ensuring tokens are always returned and the pool count
-    remains non-negative.
+    and likewise for \textit{clean\_team}, \textit{fuel\_team},
+    \textit{catering\_team}, and \textit{unload\_team}, ensuring tokens are
+    always returned and the pool count remains non-negative.
 \end{itemize}
 
 \subsection{Liveness Properties}
@@ -456,10 +461,11 @@ Liveness properties specify conditions that must eventually be satisfied.
 
 Using TINA's state space generation tool, we constructed the complete
 reachability graph of the Petri Net model. The state space captures all possible
-interleavings of concurrent operations across the two aircraft, including all
-combinations of fast and slow worker allocations. Table~\ref{tab:statespace}
-summarises the state space statistics for both the initial model (before deadlock
-resolution) and the corrected model (with the GSE Permit control place).
+interleavings of concurrent operations across the three aircraft, including all
+combinations of fast (A1) and slow (A2, A3) worker allocations.
+Table~\ref{tab:statespace} summarises the state space statistics for both the
+initial model (before deadlock resolution) and the corrected model (with the
+\textit{GSE\_Done} control place).
 
 \begin{table}[htbp]
   \caption{State Space Statistics}
@@ -490,29 +496,30 @@ the remaining request, creating a circular wait condition. TINA's reachability
 graph identifies this as a dead marking from which no transition can fire.
 
 The fast/slow path structure further introduces a secondary interaction: if A1
-fires $t_{\mathit{maint\_fast}}$ (consuming all 10 maintenance workers) and A2
-subsequently requires the same pool before A1 releases its workers, A2 is forced
-to either wait (if $t_{\mathit{maint\_slow}}$ also requires workers currently
-unavailable) or fire the slow path. This resource pressure is correctly captured
-in the reachability graph as a non-deadlock scheduling constraint.
+fires $\mathit{sf\_maintenance}$ (consuming all 10 maintenance workers) and A2
+subsequently requires the same pool before A1 releases its workers via
+$\mathit{ef\_maintenance}$, A2 must wait since $\mathit{ss\_maintenance2}$
+requires 2 workers which are unavailable. This resource pressure is correctly
+captured in the reachability graph as a non-deadlock scheduling constraint.
 
 \subsection{Deadlock Resolution}
 
-To resolve the identified deadlock, we introduce a GSE Permit control place
-$P_{\mathit{GSE\_Permit}}$ with an initial marking of 2. Each ground handling
-transition that acquires workers must also consume one permit token; the
-corresponding completion transition returns the permit. This limits concurrent
-GSE operations to at most 2 across all concurrently active aircraft, preventing the circular wait
-condition. The approach is analogous to the deadlock avoidance and liveness control
-techniques established in~\cite{b4,b5}. After applying this control mechanism, TINA confirms that no
-dead markings exist in the reachability graph other than the intended terminal
-state where all aircraft have completed takeoff.
+To resolve the identified deadlock, we introduce a \textit{GSE\_Done} control
+place with an initial marking of 2. Each aircraft's completion transition
+(\textit{all\_done\_1}, \textit{all\_done2}, \textit{all\_done3}) produces a
+token to \textit{GSE\_Done}, which is then consumed by the \textit{board}
+transition. This bounds the number of aircraft that can complete ground
+handling and proceed to boarding concurrently, preventing the circular wait
+condition. The approach is analogous to the deadlock avoidance and liveness
+control techniques established in~\cite{b4,b5}. After applying this control
+mechanism, TINA confirms that no dead markings exist in the reachability graph
+other than the intended terminal state where all aircraft have completed takeoff.
 
 \begin{figure}[htbp]
   \centering
   % \includegraphics[width=\columnwidth]{figure4_deadlock.png}
   \caption{Deadlock scenario in the initial model (circular waiting on worker
-           pools) and its resolution via the GSE Permit place.}
+           pools) and its resolution via the \textit{GSE\_Done} place.}
   \label{fig:deadlock}
 \end{figure}
 
@@ -525,8 +532,8 @@ reachable markings, confirmed by the absence of counterexamples. Property S5
 (worker pool integrity) holds structurally by construction: the arc weights on
 return arcs are identical to those on acquisition arcs, guaranteeing token
 conservation. Liveness properties L1 through L4 hold in the corrected model,
-confirming that both aircraft complete their turnarounds under all possible
-scheduling scenarios, regardless of whether fast or slow paths are taken.
+confirming that all three aircraft complete their turnarounds under all possible
+scheduling scenarios.
 
 
 %------------------------------------------------------------------
